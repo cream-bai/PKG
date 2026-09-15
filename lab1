@@ -1,0 +1,118 @@
+using System;
+using System.Drawing;
+using System.Windows.Forms;
+
+namespace ColorConverterApp
+{
+    public partial class Form1 : Form
+    {
+        private bool isUpdating = false;
+        // 控件声明
+        private TrackBar trkR, trkG, trkB, trkC, trkM, trkY, trkK, trkL, trka, trkb;
+        private TextBox txtR, txtG, txtB, txtC, txtM, txtY, txtK, txtL, txta, txtb;
+        private Panel pnlPreview;
+        private Label lblWarn;
+        private Button btnColorDialog;
+
+        public Form1()
+        {
+            // 基础窗体设置
+            this.Text = "颜色模型转换实验 (RGB ↔ LAB ↔ CMYK)";
+            this.ClientSize = new Size(900, 450);
+            this.AutoScaleMode = AutoScaleMode.Font;
+            this.StartPosition = FormStartPosition.CenterScreen;
+
+            // 预览区
+            pnlPreview = new Panel { Location = new Point(50, 60), Size = new Size(800, 80), BackColor = Color.FromArgb(120, 180, 200), BorderStyle = BorderStyle.FixedSingle };
+            this.Controls.Add(pnlPreview);
+
+            lblWarn = new Label { Location = new Point(50, 150), Size = new Size(800, 20), ForeColor = Color.OrangeRed, Text = "" };
+            this.Controls.Add(lblWarn);
+
+            btnColorDialog = new Button { Text = "调色板", Location = new Point(50, 380), Size = new Size(100, 30) };
+            btnColorDialog.Click += (s, e) => { using (var cd = new ColorDialog()) { if (cd.ShowDialog() == DialogResult.OK) UpdateAll(cd.Color); } };
+            this.Controls.Add(btnColorDialog);
+
+            // 辅助创建函数
+            Func<string, int, int, int, int, TrackBar> createTrk = (name, x, y, min, max) => {
+                var t = new TrackBar { Location = new Point(x + 60, y), Size = new Size(200, 45), Minimum = min, Maximum = max, TickFrequency = (max - min) / 10 };
+                this.Controls.Add(t); return t;
+            };
+            Func<int, int, TextBox> createTxt = (x, y) => { var t = new TextBox { Location = new Point(x, y + 5), Size = new Size(50, 20), TextAlign = HorizontalAlignment.Center }; this.Controls.Add(t); return t; };
+
+            // RGB
+            Label lblRgb = new Label { Text = "RGB", Location = new Point(50, 180), Font = new Font("微软雅黑", 10, FontStyle.Bold), ForeColor = Color.Blue, Size = new Size(100, 20) }; this.Controls.Add(lblRgb);
+            trkR = createTrk("R", 50, 200, 0, 255); txtR = createTxt(50, 200); Label lblR = new Label { Text = "R", Location = new Point(110, 205) }; this.Controls.Add(lblR);
+            trkG = createTrk("G", 50, 240, 0, 255); txtG = createTxt(50, 240); Label lblG = new Label { Text = "G", Location = new Point(110, 245) }; this.Controls.Add(lblG);
+            trkB = createTrk("B", 50, 280, 0, 255); txtB = createTxt(50, 280); Label lblB = new Label { Text = "B", Location = new Point(110, 285) }; this.Controls.Add(lblB);
+
+            // LAB
+            Label lblLab = new Label { Text = "LAB (CIE L*a*b*)", Location = new Point(350, 180), Font = new Font("微软雅黑", 10, FontStyle.Bold), ForeColor = Color.Blue, Size = new Size(150, 20) }; this.Controls.Add(lblLab);
+            trkL = createTrk("L", 350, 200, 0, 100); txtL = createTxt(350, 200); Label lblL = new Label { Text = "L*", Location = new Point(410, 205) }; this.Controls.Add(lblL);
+            trka = createTrk("a", 350, 240, -128, 127); txta = createTxt(350, 240); Label lbla = new Label { Text = "a*", Location = new Point(410, 245) }; this.Controls.Add(lbla);
+            trkb = createTrk("b", 350, 280, -128, 127); txtb = createTxt(350, 280); Label lblb = new Label { Text = "b*", Location = new Point(410, 285) }; this.Controls.Add(lblb);
+
+            // CMYK
+            Label lblCmyk = new Label { Text = "CMYK", Location = new Point(650, 180), Font = new Font("微软雅黑", 10, FontStyle.Bold), ForeColor = Color.Blue, Size = new Size(100, 20) }; this.Controls.Add(lblCmyk);
+            trkC = createTrk("C", 650, 200, 0, 100); txtC = createTxt(650, 200); Label lblC = new Label { Text = "C", Location = new Point(710, 205) }; this.Controls.Add(lblC);
+            trkM = createTrk("M", 650, 240, 0, 100); txtM = createTxt(650, 240); Label lblM = new Label { Text = "M", Location = new Point(710, 245) }; this.Controls.Add(lblM);
+            trkY = createTrk("Y", 650, 280, 0, 100); txtY = createTxt(650, 280); Label lblY = new Label { Text = "Y", Location = new Point(710, 285) }; this.Controls.Add(lblY);
+            trkK = createTrk("K", 650, 320, 0, 100); txtK = createTxt(650, 320); Label lblK = new Label { Text = "K", Location = new Point(710, 325) }; this.Controls.Add(lblK);
+
+            // 事件绑定
+            EventHandler sliderChanged = (sender, e) => {
+                if (isUpdating) return;
+                if (sender == trkR || sender == trkG || sender == trkB) UpdateAll(Color.FromArgb(trkR.Value, trkG.Value, trkB.Value));
+                else if (sender == trkC || sender == trkM || sender == trkY || sender == trkK)
+                {
+                    float c = trkC.Value / 100f, m = trkM.Value / 100f, y = trkY.Value / 100f, k = trkK.Value / 100f;
+                    int r = (int)(255 * (1 - c) * (1 - k)), g = (int)(255 * (1 - m) * (1 - k)), b = (int)(255 * (1 - y) * (1 - k));
+                    UpdateAll(Color.FromArgb(Clamp(r, 0, 255), Clamp(g, 0, 255), Clamp(b, 0, 255)));
+                }
+                else if (sender == trkL || sender == trka || sender == trkb)
+                {
+                    double L = trkL.Value, a = trka.Value, bVal = trkb.Value;
+                    double fY = (L + 16) / 116.0, fX = fY + a / 500.0, fZ = fY - bVal / 200.0;
+                    Func<double, double> invF = v => (v > 0.206893) ? Math.Pow(v, 3) : (v - 16.0 / 116.0) / 7.787;
+                    double X = invF(fX) * 0.95047, Y = invF(fY) * 1.0, Z = invF(fZ) * 1.08883;
+                    double R = X * 3.2406 - Y * 1.5372 - Z * 0.4986, G = -X * 0.9689 + Y * 1.8758 + Z * 0.0415, B = X * 0.0557 - Y * 0.2040 + Z * 1.0570;
+                    Func<double, double> toRgb = v => (v <= 0.0031308) ? 12.92 * v : 1.055 * Math.Pow(v, 1 / 2.4) - 0.055;
+                    int r = Clamp((int)Math.Round(toRgb(R) * 255), 0, 255), g = Clamp((int)Math.Round(toRgb(G) * 255), 0, 255), b = Clamp((int)Math.Round(toRgb(B) * 255), 0, 255);
+                    UpdateAll(Color.FromArgb(r, g, b));
+                }
+            };
+            foreach (var t in new[] { trkR, trkG, trkB, trkC, trkM, trkY, trkK, trkL, trka, trkb }) t.Scroll += sliderChanged;
+
+            UpdateAll(Color.FromArgb(120, 180, 200));
+        }
+
+        public void UpdateAll(Color c)
+        {
+            isUpdating = true;
+            txtR.Text = c.R.ToString(); txtG.Text = c.G.ToString(); txtB.Text = c.B.ToString();
+            trkR.Value = c.R; trkG.Value = c.G; trkB.Value = c.B;
+
+            float rf = c.R / 255f, gf = c.G / 255f, bf = c.B / 255f, k = 1 - Math.Max(rf, Math.Max(gf, bf));
+            float cc = (k == 1) ? 0 : (1 - rf - k) / (1 - k), mm = (k == 1) ? 0 : (1 - gf - k) / (1 - k), yy = (k == 1) ? 0 : (1 - bf - k) / (1 - k);
+            txtC.Text = (cc * 100).ToString("F1"); txtM.Text = (mm * 100).ToString("F1"); txtY.Text = (yy * 100).ToString("F1"); txtK.Text = (k * 100).ToString("F1");
+            trkC.Value = Clamp((int)Math.Round(cc * 100), 0, 100); trkM.Value = Clamp((int)Math.Round(mm * 100), 0, 100); trkY.Value = Clamp((int)Math.Round(yy * 100), 0, 100); trkK.Value = Clamp((int)Math.Round(k * 100), 0, 100);
+
+            double Rn = c.R / 255.0, Gn = c.G / 255.0, Bn = c.B / 255.0;
+            Func<double, double> toXyz = v => v > 0.04045 ? Math.Pow((v + 0.055) / 1.055, 2.4) : v / 12.92;
+            double X = (toXyz(Rn) * 0.4124 + toXyz(Gn) * 0.3576 + toXyz(Bn) * 0.1805) / 0.95047;
+            double Y = (toXyz(Rn) * 0.2126 + toXyz(Gn) * 0.7152 + toXyz(Bn) * 0.0722) / 1.0;
+            double Z = (toXyz(Rn) * 0.0193 + toXyz(Gn) * 0.1192 + toXyz(Bn) * 0.9505) / 1.08883;
+            Func<double, double> f = v => v > 0.008856 ? Math.Pow(v, 1.0 / 3.0) : (7.787 * v + 16.0 / 116.0);
+            double L = 116 * f(Y) - 16, a = 500 * (f(X) - f(Y)), b = 200 * (f(Y) - f(Z));
+            txtL.Text = L.ToString("F1"); txta.Text = a.ToString("F1"); txtb.Text = b.ToString("F1");
+            trkL.Value = Clamp((int)Math.Round(L), 0, 100); trka.Value = Clamp((int)Math.Round(a), -128, 127); trkb.Value = Clamp((int)Math.Round(b), -128, 127);
+
+            pnlPreview.BackColor = c;
+            lblWarn.Text = (c.R > 255 || c.G > 255 || c.B > 255) ? "⚠ 发生越界截断" : "";
+            isUpdating = false;
+        }
+
+        private int Clamp(int val, int min, int max) => val < min ? min : (val > max ? max : val);
+        private float Clamp(float val, float min, float max) => val < min ? min : (val > max ? max : val);
+    }
+}
