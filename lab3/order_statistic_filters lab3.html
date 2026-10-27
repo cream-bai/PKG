@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Нелинейные фильтры на основе порядковых статистик — Лабораторная работа №3</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Tahoma, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4ecf5 100%);
+    margin: 0; padding: 24px; color: #233;
+  }
+  h1 { font-size: 22px; text-align: center; color: #1a3d6d; margin: 0 0 4px; }
+  .sub { text-align: center; color: #667; font-size: 13px; margin-bottom: 20px; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 18px 20px;
+    box-shadow: 0 4px 18px rgba(30,60,110,.08); margin-bottom: 20px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 14px; color: #1a3d6d; border-left: 4px solid #3a7bd5; padding-left: 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  label { font-size: 13px; font-weight: 600; color: #445; min-width: 130px; }
+  input[type=range] { flex: 1; min-width: 140px; }
+  .val { display: inline-block; min-width: 30px; text-align: center; font-weight: 700; color: #3a7bd5; }
+  select, button {
+    font-family: inherit; font-size: 13px; border-radius: 8px;
+    padding: 8px 14px; border: 1px solid #ccd6e4; background: #f8fafc; cursor: pointer;
+  }
+  button { background: #3a7bd5; color: #fff; border: none; font-weight: 600; transition: .15s; }
+  button:hover { background: #2b62b0; }
+  button.ghost { background: #fff; color: #3a7bd5; border: 1px solid #3a7bd5; }
+  button.ghost:hover { background: #eaf2fd; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  .pane { text-align: center; }
+  .pane h3 { font-size: 14px; color: #556; margin: 0 0 8px; }
+  canvas {
+    max-width: 100%; border: 1px solid #d5dee9; border-radius: 8px;
+    background: #f0f3f7; image-rendering: pixelated;
+  }
+  .hint { font-size: 12px; color: #889; margin-top: 6px; }
+  .note { font-size: 12px; color: #556; background: #f0f6ff; border-radius: 8px; padding: 10px 12px; line-height: 1.6; }
+  .note b { color: #1a3d6d; }
+  .badge { display:inline-block; background:#eaf2fd; color:#2b62b0; border-radius:6px; padding:2px 8px; font-size:12px; margin:2px 4px 2px 0; }
+  .foot { text-align:center; font-size:12px; color:#99a; margin-top:8px; }
+</style>
+</head>
+<body>
+  <h1>Нелинейные фильтры на основе порядковых статистик</h1>
+  <div class="sub">Лабораторная работа №3 • Вариант 5 • Реализация + тестовая база изображений</div>
+
+  <!-- Панель управления -->
+  <div class="card">
+    <h2>Управление</h2>
+    <div class="row">
+      <button onclick="document.getElementById('file').click()">Загрузить изображение</button>
+      <button class="ghost" onclick="addNoise()">Добавить шум (соль/перец)</button>
+      <button class="ghost" onclick="resetImg()">Сбросить</button>
+      <input type="file" id="file" accept="image/*" style="display:none" onchange="loadImg(event)">
+      <span class="hint">или выберите тестовое ниже</span>
+    </div>
+    <div class="row">
+      <label>Тестовое изображение:</label>
+      <button class="ghost" onclick="makeTest('gradient')">Градиент</button>
+      <button class="ghost" onclick="makeTest('checker')">Шахматка</button>
+      <button class="ghost" onclick="makeTest('bars')">Полосы</button>
+      <button class="ghost" onclick="makeTest('circle')">Круги</button>
+    </div>
+    <div class="row">
+      <label>Тип фильтра:</label>
+      <select id="filter" onchange="render()">
+        <option value="median">Медианный фильтр (порядковая статистика p=50%)</option>
+        <option value="max">Максимум (п=100%) — удаляет «перец»</option>
+        <option value="min">Минимум (p=0%) — удаляет «соль»</option>
+        <option value="midpoint">Серединный (max+min)/2</option>
+        <option value="alphatrim">α-усечённое среднее</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Размер окна (n×n):</label>
+      <input type="range" id="size" min="3" max="9" step="2" value="3" oninput="document.getElementById('sizeVal').textContent=this.value; render()">
+      <span class="val" id="sizeVal">3</span>
+    </div>
+    <div class="row" id="alphaRow" style="display:none">
+      <label>α (доля отбрасываемых):</label>
+      <input type="range" id="alpha" min="0" max="0.45" step="0.05" value="0.2" oninput="document.getElementById('alphaVal').textContent=this.value; render()">
+      <span class="val" id="alphaVal">0.2</span>
+    </div>
+  </div>
+
+  <!-- Изображения -->
+  <div class="grid2">
+    <div class="card pane">
+      <h3>Исходное изображение</h3>
+      <canvas id="src"></canvas>
+      <div class="hint" id="srcInfo"></div>
+    </div>
+    <div class="card pane">
+      <h3>Результат фильтрации</h3>
+      <canvas id="dst"></canvas>
+      <div class="hint" id="dstInfo"></div>
+    </div>
+  </div>
+
+  <!-- Гистограмма -->
+  <div class="card pane">
+    <h2>Гистограмма яркости (исходная vs результат)</h2>
+    <canvas id="hist" height="160" style="max-width:100%"></canvas>
+  </div>
+
+  <!-- Пояснение -->
+  <div class="card">
+    <h2>Пояснение к методу</h2>
+    <div class="note" id="explain"></div>
+  </div>
+
+  <div class="foot">Реализация на чистом JavaScript (Canvas) • не требует установки, работает в любом браузере</div>
+
+<script>
+let srcData = null, origData = null;
+const sizeEl = document.getElementById('size'), alphaEl = document.getElementById('alpha');
+const filterEl = document.getElementById('filter');
+
+const EXPL = {
+  median: `<b>Медианный фильтр.</b> В окне n×n пиксели сортируются по яркости, на выход идёт значение с индексом (n²−1)/2 (медиана, 50-й процентиль). 
+    Эффективно подавляет импульсный («соль/перец») шум, при этом сохраняет края — в отличие от усредняющего фильтра, который их размывает.
+    <div class="badge">порядковая статистика p=50%</div><div class="badge">шум: соль/перец</div>`,
+  max: `<b>Фильтр максимума (порядковая статистика p=100%).</b> На выход — наибольшее значение в окне. 
+    Удаляет тёмные выбросы («перец», pepper), но делает объекты светлее и толще.
+    <div class="badge">порядковая статистика p=100%</div><div class="badge">шум: перец</div>`,
+  min: `<b>Фильтр минимума (порядковая статистика p=0%).</b> На выход — наименьшее значение в окне. 
+    Удаляет светлые выбросы («соль», salt), но делает объекты темнее и тоньше.
+    <div class="badge">порядковая статистика p=0%</div><div class="badge">шум: соль</div>`,
+  midpoint: `<b>Серединный фильтр.</b> На выход подаётся среднее арифметическое максимума и минимума в окне: (max+min)/2. 
+    Работает лучше всего на изображениях с равномерным или гауссовым шумом.
+    <div class="badge">(max+min)/2</div><div class="badge">шум: равномерный</div>`,
+  alphatrim: `<b>α-усечённое среднее.</b> В окне сортируют значения, отбрасывают α·n² самых тёмных и столько же самых светлых, 
+    оставшиеся усредняют. При α=0 совпадает с обычным средним, при α≈0.5 — с медианой. Эффективен при смешанном шуме.
+    <div class="badge">отброс α·n² экстремумов</div><div class="badge">шум: смешанный</div>`
+};
+
+/* ---------- загрузка ---------- */
+function loadImg(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => setupFromImage(ev.target.result);
+  r.readAsDataURL(f);
+}
+function setupFromImage(src) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.getElementById('src');
+    const w = img.width, h = img.height;
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
+    srcData = ctx.getImageData(0, 0, w, h);
+    origData = ctx.getImageData(0, 0, w, h);
+    render();
+  };
+  img.src = src;
+}
+
+/* ---------- тестовые изображения ---------- */
+function makeTest(kind) {
+  const w = 256, h = 256, c = document.getElementById('src');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  const id = ctx.createImageData(w, h); const d = id.data;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let v = 128;
+    if (kind === 'gradient') v = (x + y) / (w + h) * 255;
+    if (kind === 'checker')  v = ((x >> 5) + (y >> 5)) % 2 ? 255 : 0;
+    if (kind === 'bars')     v = (x % 32 < 16) ? 255 : 0;
+    if (kind === 'circle')   v = ((x-128)*(x-128)+(y-128)*(y-128) < 4096) ? 200 : 40;
+    const i = (y * w + x) * 4;
+    d[i] = d[i+1] = d[i+2] = v; d[i+3] = 255;
+  }
+  ctx.putImageData(id, 0, 0);
+  srcData = id; origData = ctx.getImageData(0, 0, w, h);
+  addNoise(true);
+}
+function addNoise(silent) {
+  if (!srcData) { alert('Сначала загрузите изображение!'); return; }
+  const d = srcData.data, n = d.length / 4;
+  const copy = new ImageData(new Uint8ClampedArray(d), srcData.width, srcData.height);
+  for (let i = 0; i < n; i++) {
+    const r = Math.random();
+    if (r < 0.02) { copy.data[i*4] = copy.data[i*4+1] = copy.data[i*4+2] = 0; }      // перец
+    else if (r < 0.04) { copy.data[i*4] = copy.data[i*4+1] = copy.data[i*4+2] = 255; } // соль
+  }
+  srcData = copy;
+  const c = document.getElementById('src'), ctx = c.getContext('2d');
+  ctx.putImageData(srcData, 0, 0);
+  render();
+}
+function resetImg() {
+  if (!origData) return;
+  srcData = new ImageData(new Uint8ClampedArray(origData.data), origData.width, origData.height);
+  const c = document.getElementById('src'), ctx = c.getContext('2d');
+  ctx.putImageData(srcData, 0, 0); render();
+}
+
+/* ---------- фильтрация ---------- */
+function getGray(id, x, y) {
+  const i = (y * id.width + x) * 4;
+  return 0.299*id.data[i] + 0.587*id.data[i+1] + 0.114*id.data[i+2];
+}
+function setGray(id, x, y, v) {
+  const i = (y * id.width + x) * 4;
+  id.data[i] = id.data[i+1] = id.data[i+2] = v;
+}
+
+function orderStat(id, n, type, alpha) {
+  const out = new ImageData(id.width, id.height);
+  const half = Math.floor(n / 2), area = n * n;
+  const trim = Math.floor(alpha * area / 2);
+  for (let y = 0; y < id.height; y++) for (let x = 0; x < id.width; x++) {
+    const win = [];
+    for (let j = -half; j <= half; j++) for (let i = -half; i <= half; i++) {
+      const yy = Math.min(Math.max(y + j, 0), id.height - 1);
+      const xx = Math.min(Math.max(x + i, 0), id.width - 1);
+      win.push(getGray(id, xx, yy));
+    }
+    win.sort((a, b) => a - b);
+    let v;
+    if (type === 'median')      v = win[(area - 1) >> 1];
+    else if (type === 'max')    v = win[area - 1];
+    else if (type === 'min')    v = win[0];
+    else if (type === 'midpoint') v = (win[0] + win[area - 1]) / 2;
+    else if (type === 'alphatrim') {
+      let s = 0;
+      for (let k = trim; k < area - trim; k++) s += win[k];
+      v = s / (area - 2 * trim);
+    }
+    setGray(out, x, y, v);
+  }
+  return out;
+}
+
+/* ---------- рендер ---------- */
+function render() {
+  document.getElementById('alphaRow').style.display = filterEl.value === 'alphatrim' ? 'flex' : 'none';
+  document.getElementById('explain').innerHTML = EXPL[filterEl.value];
+
+  const c = document.getElementById('src'), ctx = c.getContext('2d');
+  if (!srcData) {
+    // пустой холст-заглушка
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#eef2f7'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#889'; ctx.font = '14px sans-serif';
+    ctx.fillText('Загрузите изображение или выберите тестовое', 20, c.height / 2);
+    return;
+  }
+  const n = +sizeEl.value, t = filterEl.value, a = +alphaEl.value;
+  const t0 = performance.now();
+  const out = orderStat(srcData, n, t, a);
+  const ms = (performance.now() - t0).toFixed(0);
+
+  const dc = document.getElementById('dst'), dctx = dc.getContext('2d');
+  dc.width = srcData.width; dc.height = srcData.height;
+  dctx.putImageData(out, 0, 0);
+
+  document.getElementById('srcInfo').textContent = `${srcData.width}×${srcData.height} px, grayscale`;
+  document.getElementById('dstInfo').textContent = `окно ${n}×${n}, ${ms} мс`;
+  drawHist(srcData, out);
+}
+
+/* ---------- гистограмма ---------- */
+function histOf(id) {
+  const h = new Array(256).fill(0), d = id.data;
+  for (let i = 0; i < d.length; i += 4) h[d[i]]++;
+  return h;
+}
+function drawHist(a, b) {
+  const c = document.getElementById('hist');
+  if (c.width !== c.clientWidth) c.width = c.clientWidth;
+  const ctx = c.getContext('2d'), W = c.width, H = c.height, pad = 24;
+  ctx.clearRect(0, 0, W, H);
+  const ha = histOf(a), hb = histOf(b);
+  const maxA = Math.max(...ha), maxB = Math.max(...hb);
+  const sc = v => (v / Math.max(maxA, maxB)) * (H - pad - 6);
+  // исходная — серая
+  ctx.fillStyle = 'rgba(150,160,175,.55)';
+  for (let i = 0; i < 256; i++) {
+    const x = pad + i * (W - pad * 2) / 256;
+    ctx.fillRect(x, H - pad - sc(ha[i]), (W - pad * 2) / 256 + 0.6, sc(ha[i]));
+  }
+  // результат — синяя
+  ctx.fillStyle = 'rgba(58,123,213,.75)';
+  for (let i = 0; i < 256; i++) {
+    const x = pad + i * (W - pad * 2) / 256;
+    ctx.fillRect(x, H - pad - sc(hb[i]), (W - pad * 2) / 256 + 0.6, sc(hb[i]));
+  }
+  // оси
+  ctx.strokeStyle = '#99a'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad, 4); ctx.lineTo(pad, H - pad); ctx.lineTo(W - pad, H - pad); ctx.stroke();
+  ctx.fillStyle = '#667'; ctx.font = '11px sans-serif';
+  ctx.fillText('0', pad - 4, H - pad + 14);
+  ctx.fillText('255', W - pad - 18, H - pad + 14);
+  ctx.fillText('плотность яркости', W / 2 - 40, 14);
+  ctx.fillStyle = '#889';
+  ctx.fillText('серый — исходное, синий — результат', W - pad - 210, H - 4);
+}
+
+filterEl.addEventListener('change', render);
+window.addEventListener('resize', render);
+render();
+</script>
+</body>
+</html>
