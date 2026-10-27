@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Графические алгоритмы (Лабораторная работа)</title>
+<style>
+  body { font-family: Arial; margin: 20px; }
+  canvas { border: 1px solid #ccc; background: #fff; }
+  .controls { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<h2>Лабораторная работа 4: Алгоритмы растеризации</h2>
+
+<div class="controls">
+  <label>Алгоритм:
+    <select id="algoSelect">
+      <option value="step">Пошаговый (Step)</option>
+      <option value="dda">ЦДА (DDA)</option>
+      <option value="bresenham">Брезенхем (Линия)</option>
+      <option value="bresenhamCircle">Брезенхем (Окружность)</option>
+      <option value="wu">Уу (Anti-aliasing)</option>
+      <option value="castle">Касл-Питвея</option>
+    </select>
+  </label>
+  <label>Масштаб: <input type="range" id="scale" min="0.5" max="3" step="0.1" value="1"></label>
+  <button onclick="drawDemo()">Нарисовать</button>
+  <button onclick="runBenchmark()">Тест (10000 операций)</button>
+  <span id="status"></span>
+</div>
+
+<canvas id="canvas" width="800" height="600"></canvas>
+
+<script>
+// =====================================================================
+// Шаг 1. Инициализация среды и виртуального растра
+// =====================================================================
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+
+// Виртуальный растр для накопления результатов алгоритмов (Alpha канал)
+let virtualGrid = new Float32Array(WIDTH * HEIGHT);
+
+// Базовая функция установки пикселя (виртуальный растр)
+function setPixel(x, y, alpha = 1.0) {
+  x = Math.floor(x); y = Math.floor(y);
+  if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT) {
+    // Для обычных алгоритмов перезаписываем, для Wu - накапливаем/ограничиваем
+    virtualGrid[y * WIDTH + x] = Math.min(1.0, alpha + virtualGrid[y * WIDTH + x]);
+  }
+}
+
+function clearGrid() {
+  virtualGrid.fill(0);
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+}
+
+// =====================================================================
+// Шаг 2. Алгоритмы растеризации
+// =====================================================================
+
+// --- 2.1 Пошаговый алгоритм ---
+function drawStep(x0, y0, x1, y1) {
+  let dx = x1 - x0, dy = y1 - y0;
+  let steps = Math.max(Math.abs(dx), Math.abs(dy));
+  if (steps === 0) { setPixel(x0, y0); return; }
+  let xInc = dx / steps, yInc = dy / steps;
+  let x = x0, y = y0;
+  for (let i = 0; i <= steps; i++) {
+    setPixel(Math.round(x), Math.round(y));
+    x += xInc; y += yInc;
+  }
+}
+
+// --- 2.2 ЦДА (DDA) ---
+function drawDDA(x0, y0, x1, y1) {
+  let dx = x1 - x0, dy = y1 - y0;
+  let steps = Math.max(Math.abs(dx), Math.abs(dy));
+  if (steps === 0) { setPixel(Math.round(x0), Math.round(y0)); return; }
+  let xInc = dx / steps, yInc = dy / steps;
+  let x = x0, y = y0;
+  for (let i = 0; i <= steps; i++) {
+    setPixel(Math.floor(x + 0.5), Math.floor(y + 0.5));
+    x += xInc; y += yInc;
+  }
+}
+
+// --- 2.3 Брезенхем (Линия) ---
+function drawBresenham(x0, y0, x1, y1) {
+  let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+  let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+  while (true) {
+    setPixel(x0, y0);
+    if (x0 === x1 && y0 === y1) break;
+    let e2 = 2 * err;
+    if (e2 > -dy) { err -= dy; x0 += sx; }
+    if (e2 < dx) { err += dx; y0 += sy; }
+  }
+}
+
+// --- 2.4 Брезенхем (Окружность) - целочисленный, 8 симметричных точек ---
+function drawBresenhamCircle(xc, yc, r) {
+  if (r < 0) r = 0;
+  let x = 0, y = r;
+  let d = 3 - 2 * r; // начальный дискриминант
+  const plot = () => {
+    setPixel(xc + x, yc + y); setPixel(xc - x, yc + y);
+    setPixel(xc + x, yc - y); setPixel(xc - x, yc - y);
+    setPixel(xc + y, yc + x); setPixel(xc - y, yc + x);
+    setPixel(xc + y, yc - x); setPixel(xc - y, yc - x);
+  };
+  while (y >= x) {
+    plot();
+    if (d > 0) { d += 4 * (x - y) + 10; y--; } 
+    else       { d += 4 * x + 6; }
+    x++;
+  }
+}
+
+// --- 2.5 Уу (Wu's Anti-aliasing) - честный расчёт Alpha ---
+function drawWu(x0, y0, x1, y1) {
+  let dx = x1 - x0, dy = y1 - y0;
+  const adx = Math.abs(dx), ady = Math.abs(dy);
+  
+  // Защита от вертикальных линий (деление на ноль)
+  if (adx === 0 && ady === 0) { setPixel(x0, y0, 1); return; }
+  if (adx === 0) { 
+    // Обработка строго вертикальных линий для Wu
+    let sy = y0 < y1 ? 1 : -1;
+    for (let y = y0; sy > 0 ? y <= y1 : y >= y1; y += sy) setPixel(x0, y, 1);
+    return;
+  }
+
+  const steep = ady > adx;
+  if (steep) { [x0, y0] = [y0, x0]; [x1, y1] = [y1, x1]; dx = x1 - x0; dy = y1 - y0; }
+  if (x0 > x1) { [x0, x1] = [x1, x0]; [y0, y1] = [y1, y0]; dx = x1 - x0; dy = y1 - y0; }
+  
+  const gradient = dy / dx;
+  const rfpart = v => 1 - (v - Math.floor(v));
+  const ipart = v => Math.floor(v);
+  
+  // Начальная точка
+  let xEnd = Math.round(x0), yEnd = y0 + gradient * (xEnd - x0);
+  let xGap = rfpart(x0 + 0.5);
+  let x = xEnd, yf = yEnd;
+  if (steep) {
+    setPixel(yf | 0, x, rfpart(yEnd) * xGap);
+    setPixel(yf | 0 + 1, x, (1 - rfpart(yEnd)) * xGap);
+  } else {
+    setPixel(x, yf | 0, rfpart(yEnd) * xGap);
+    setPixel(x, yf | 0 + 1, (1 - rfpart(yEnd)) * xGap);
+  }
+  
+  // Конечная точка
+  let xEnd2 = Math.round(x1), yEnd2 = y1 + gradient * (xEnd2 - x1);
+  xGap = rfpart(x1 + 0.5);
+  if (steep) {
+    setPixel(yEnd2 | 0, xEnd2, rfpart(yEnd2) * xGap);
+    setPixel(yEnd2 | 0 + 1, xEnd2, (1 - rfpart(yEnd2)) * xGap);
+  } else {
+    setPixel(xEnd2, yEnd2 | 0, rfpart(yEnd2) * xGap);
+    setPixel(xEnd2, yEnd2 | 0 + 1, (1 - rfpart(yEnd2)) * xGap);
+  }
+  
+  // Основной цикл
+  yf += gradient;
+  while (++x < xEnd2) {
+    const yp = yf | 0;
+    const frc = yf - yp;
+    if (steep) {
+      setPixel(yp, x, 1 - frc);
+      setPixel(yp + 1, x, frc);
+    } else {
+      setPixel(x, yp, 1 - frc);
+      setPixel(x, yp + 1, frc);
+    }
+    yf += gradient;
+  }
+}
+
+// --- 2.6 Касл-Питвея (Castle-Pitway) - целочисленный алгоритм кривых ---
+function drawCastle(x0, y0, x1, y1, x2, y2) {
+  const N = Math.max(Math.abs(x2 - x0), Math.abs(y2 - y0), Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
+  const ax = x0 - 2 * x1 + x2, bx = 2 * (x1 - x0), cx = x0;
+  const ay = y0 - 2 * y1 + y2, by = 2 * (y1 - y0), cy = y0;
+  const N2 = N * N;
+  let prevX = -9999, prevY = -9999;
+  for (let k = 0; k <= N; k++) {
+    const Xk = ((ax * k * k + bx * N * k + cx * N2) / N2) | 0;
+    const Yk = ((ay * k * k + by * N * k + cy * N2) / N2) | 0;
+    if (k === 0 || Xk !== prevX || Yk !== prevY) {
+      setPixel(Xk, Yk);
+      prevX = Xk; prevY = Yk;
+    }
+  }
+}
+
+// =====================================================================
+// Шаг 3. Рендеринг UI (после работы алгоритма — изоляция соблюдена)
+// =====================================================================
+function renderUI() {
+  const scale = parseFloat(document.getElementById('scale').value) || 1;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+  // 3.1 Сетка
+  ctx.strokeStyle = '#e8e8e8';
+  ctx.lineWidth = 1 / scale;
+  ctx.beginPath();
+  for (let x = 0; x <= WIDTH; x += 20) { ctx.moveTo(x, 0); ctx.lineTo(x, HEIGHT); }
+  for (let y = 0; y <= HEIGHT; y += 20) { ctx.moveTo(0, y); ctx.lineTo(WIDTH, y); }
+  ctx.stroke();
+
+  // 3.2 Оси координат
+  ctx.strokeStyle = '#c00';
+  ctx.lineWidth = 2 / scale;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(WIDTH, 0);
+  ctx.moveTo(0, 0); ctx.lineTo(0, HEIGHT);
+  ctx.stroke();
+
+  // 3.3 Подписи координат
+  ctx.fillStyle = '#c00';
+  ctx.font = Math.round(10 / scale) + 'px Arial';
+  for (let x = 0; x <= WIDTH; x += 50) {
+    ctx.fillText(x, x + 2 / scale, 12 / scale);
+    ctx.fillRect(x, -3 / scale, 0.5 / scale, 6 / scale);
+  }
+  for (let y = 0; y <= HEIGHT; y += 50) {
+    ctx.fillText(y, 2 / scale, y - 2 / scale);
+    ctx.fillRect(-3 / scale, y, 6 / scale, 0.5 / scale);
+  }
+
+  // 3.4 Пиксели виртуального растра (наложение Alpha)
+  const imgData = ctx.getImageData(0, 0, WIDTH, HEIGHT);
+  const data = imgData.data;
+  for (let y = 0; y < HEIGHT; y++) {
+    for (let x = 0; x < WIDTH; x++) {
+      const a = virtualGrid[y * WIDTH + x];
+      if (a > 0) {
+        const i = (y * WIDTH + x) * 4;
+        data[i]     = data[i]     * (1 - a) + 0   * a; // R
+        data[i + 1] = data[i + 1] * (1 - a) + 0   * a; // G
+        data[i + 2] = data[i + 2] * (1 - a) + 0   * a; // B
+        data[i + 3] = 255;
+      }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+// =====================================================================
+// Шаг 4. Управление
+// =====================================================================
+function drawDemo() {
+  clearGrid();
+  const algo = document.getElementById('algoSelect').value;
+  if (algo === 'step')           drawStep(100, 100, 700, 500);
+  else if (algo === 'dda')      drawDDA(100, 100, 700, 500);
+  else if (algo === 'bresenham')drawBresenham(100, 100, 700, 500);
+  else if (algo === 'bresenhamCircle') drawBresenhamCircle(400, 300, 150);
+  else if (algo === 'wu')       drawWu(100, 100, 700, 500);
+  else if (algo === 'castle')   drawCastle(100, 500, 400, 100, 700, 500);
+  renderUI();
+  document.getElementById('status').innerText = 'Готово';
+}
+
+// =====================================================================
+// Шаг 5. Бенчмарк (стресс-тест) — замер ТОЛЬКО "чистого" виртуального растра
+// =====================================================================
+function runBenchmark() {
+  clearGrid();
+  const status = document.getElementById('status');
+  status.innerText = 'Тестирование...';
+
+  setTimeout(() => {
+    const t0 = performance.now();
+
+    for (let i = 0; i < 20000; i++) {
+      const x0 = Math.floor(Math.random() * WIDTH), y0 = Math.floor(Math.random() * HEIGHT);
+      const x1 = Math.floor(Math.random() * WIDTH), y1 = Math.floor(Math.random() * HEIGHT);
+      drawBresenham(x0, y0, x1, y1);
+      if (i % 2 === 0) drawWu(x0, y0, x1, y1);
+      if (i % 5 === 0) drawDDA(x0, y0, x1, y1);
+      if (i % 7 === 0) drawStep(x0, y0, x1, y1);
+    }
+    for (let i = 0; i < 10000; i++) {
+      const xc = Math.floor(Math.random() * WIDTH), yc = Math.floor(Math.random() * HEIGHT);
+      const r = Math.floor(Math.random() * 50) + 1;
+      drawBresenhamCircle(xc, yc, r);
+    }
+    for (let i = 0; i < 5000; i++) {
+      const x0 = Math.floor(Math.random() * WIDTH), y0 = Math.floor(Math.random() * HEIGHT);
+      const x2 = Math.floor(Math.random() * WIDTH), y2 = Math.floor(Math.random() * HEIGHT);
+      drawCastle(x0, y0, (x0+x2)/2, Math.random()*HEIGHT, x2, y2);
+    }
+
+    const t1 = performance.now();
+
+    // UI рендерим ПОСЛЕ замера
+    renderUI();
+    status.innerText = `Бенчмарк завершен за ${(t1 - t0).toFixed(2)} мс (без учёта UI)`;
+  }, 50);
+}
+
+// Инициализация
+document.getElementById('algoSelect').addEventListener('change', drawDemo);
+document.getElementById('scale').addEventListener('input', renderUI);
+drawDemo();
+</script>
+</body>
+</html>
