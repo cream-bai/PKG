@@ -1,0 +1,4055 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Лабораторная работа 2 — Чтение графических файлов</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family:
+                "Microsoft YaHei",
+                "微软雅黑",
+                Arial,
+                sans-serif;
+
+            background: #f0f2f5;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4a6fa5, #6b8ccf);
+            color: white;
+            padding: 18px 20px;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .header h1 {
+            font-size: 21px;
+            margin-bottom: 7px;
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.92;
+        }
+
+        .toolbar {
+            background: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #e8e8e8;
+        }
+
+        button {
+            padding: 9px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            color: white;
+            background: #4a6fa5;
+            transition: 0.15s;
+        }
+
+        button:hover {
+            background: #3a5a8a;
+        }
+
+        button.secondary {
+            background: #68737d;
+        }
+
+        button.secondary:hover {
+            background: #555f68;
+        }
+
+        .hint {
+            font-size: 12px;
+            color: #777;
+        }
+
+        input[type=file] {
+            display: none;
+        }
+
+        .status-area {
+            background: white;
+            padding: 10px 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        #status {
+            font-size: 13px;
+            color: #555;
+            min-height: 20px;
+            margin-bottom: 6px;
+        }
+
+        #progressBar {
+            width: 100%;
+            height: 8px;
+            appearance: none;
+            border: none;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        #progressBar::-webkit-progress-bar {
+            background: #eeeeee;
+        }
+
+        #progressBar::-webkit-progress-value {
+            background: #4a6fa5;
+        }
+
+        #progressBar::-moz-progress-bar {
+            background: #4a6fa5;
+        }
+
+        .summary {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .summary span {
+            background: #f5f7fa;
+            padding: 5px 9px;
+            border-radius: 5px;
+        }
+
+        .table-wrap {
+            background: white;
+            max-height: 70vh;
+            overflow: auto;
+            border-radius: 0 0 10px 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            min-width: 900px;
+        }
+
+        th,
+        td {
+            padding: 9px 10px;
+            text-align: left;
+            border-bottom: 1px solid #eeeeee;
+            font-size: 13px;
+            vertical-align: top;
+        }
+
+        th {
+            background: #4a6fa5;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            white-space: nowrap;
+        }
+
+        tbody tr:hover {
+            background: #f5f8ff;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #333;
+            max-width: 320px;
+            word-break: break-all;
+        }
+
+        .format-tag {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 10px;
+            background: #e8f0fe;
+            color: #1a3c6e;
+            font-size: 11px;
+            margin-right: 6px;
+        }
+
+        .error {
+            color: #c0392b;
+        }
+
+        .muted {
+            color: #999;
+        }
+
+        .extra-info {
+            line-height: 1.5;
+            min-width: 180px;
+            max-width: 360px;
+            word-break: break-word;
+        }
+
+        @media (max-width: 700px) {
+            body {
+                padding: 8px;
+            }
+
+            .header h1 {
+                font-size: 17px;
+            }
+
+            .toolbar {
+                padding: 12px;
+            }
+
+            .status-area {
+                padding: 10px 12px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>Лабораторная работа 2 — Чтение информации из графических файлов</h1>
+        <p>
+            JPG / JPEG / GIF / TIF / TIFF / BMP / PNG / PCX
+        </p>
+    </div>
+
+    <div class="toolbar">
+
+        <!-- 选择文件夹 -->
+        <button
+            type="button"
+            id="chooseFolderBtn">
+            📂 Выбрать папку
+        </button>
+
+        <!-- 选择文件 -->
+        <button
+            type="button"
+            class="secondary"
+            id="chooseFilesBtn">
+            📄 Выбрать файлы
+        </button>
+
+        <button
+            type="button"
+            class="secondary"
+            id="clearBtn">
+            🗑 Очистить
+        </button>
+
+        <!-- 文件夹 -->
+        <input
+            type="file"
+            id="folderInput"
+            multiple
+            webkitdirectory
+            directory
+            accept=".jpg,.jpeg,.gif,.tif,.tiff,.bmp,.png,.pcx"
+        >
+
+        <!-- 文件 -->
+        <input
+            type="file"
+            id="fileInput"
+            multiple
+            accept=".jpg,.jpeg,.gif,.tif,.tiff,.bmp,.png,.pcx"
+        >
+
+        <span class="hint">
+            Можно выбрать папку с большим количеством файлов.
+            Максимум: 100000 файлов.
+        </span>
+
+    </div>
+
+
+    <div class="status-area">
+
+        <div id="status">
+            Ожидание... Выберите папку или файлы.
+        </div>
+
+        <progress
+            id="progressBar"
+            value="0"
+            max="1">
+        </progress>
+
+        <div class="summary">
+            <span>
+                Всего: <strong id="totalCount">0</strong>
+            </span>
+
+            <span>
+                Обработано: <strong id="doneCount">0</strong>
+            </span>
+
+            <span>
+                Успешно: <strong id="successCount">0</strong>
+            </span>
+
+            <span>
+                Ошибок: <strong id="errorCount">0</strong>
+            </span>
+        </div>
+
+    </div>
+
+
+    <div class="table-wrap">
+
+        <table>
+
+            <thead>
+
+            <tr>
+                <th>Имя файла</th>
+                <th>Размер (px)</th>
+                <th>Разрешение (dpi)</th>
+                <th>Глубина цвета</th>
+                <th>Сжатие</th>
+                <th>Доп. информация</th>
+            </tr>
+
+            </thead>
+
+            <tbody id="tbody"></tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<script>
+
+"use strict";
+
+/* =========================================================
+   Настройки
+   ========================================================= */
+
+const MAX_FILES = 100000;
+
+/*
+ * Для массовой обработки читаем только начало файла.
+ * Обычно вся служебная информация графического файла
+ * находится в начале.
+ *
+ * Если информации не хватает, программа попробует
+ * прочитать весь файл.
+ */
+const INITIAL_READ_SIZE = 4 * 1024 * 1024;
+
+/*
+ * Количество файлов, обрабатываемых параллельно.
+ *
+ * Небольшое число позволяет не перегружать браузер.
+ */
+const CONCURRENCY = 8;
+
+
+/* =========================================================
+   DOM
+   ========================================================= */
+
+const folderInput = document.getElementById("folderInput");
+const fileInput = document.getElementById("fileInput");
+
+const chooseFolderBtn =
+    document.getElementById("chooseFolderBtn");
+
+const chooseFilesBtn =
+    document.getElementById("chooseFilesBtn");
+
+const clearBtn =
+    document.getElementById("clearBtn");
+
+const tbody =
+    document.getElementById("tbody");
+
+const statusEl =
+    document.getElementById("status");
+
+const progressBar =
+    document.getElementById("progressBar");
+
+const totalCount =
+    document.getElementById("totalCount");
+
+const doneCount =
+    document.getElementById("doneCount");
+
+const successCount =
+    document.getElementById("successCount");
+
+const errorCount =
+    document.getElementById("errorCount");
+
+
+/* =========================================================
+   基础工具
+   ========================================================= */
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+
+function round(value, digits = 2) {
+
+    const factor =
+        Math.pow(10, digits);
+
+    return Math.round(value * factor) / factor;
+}
+
+
+function formatNumber(value, digits = 2) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        !Number.isFinite(value)
+    ) {
+        return "—";
+    }
+
+    const rounded = round(value, digits);
+
+    return String(rounded);
+}
+
+
+function formatDpi(resolution) {
+
+    if (
+        !resolution ||
+        !Number.isFinite(resolution.x) ||
+        !Number.isFinite(resolution.y)
+    ) {
+        return "Нет данных";
+    }
+
+    return (
+        formatNumber(resolution.x) +
+        " × " +
+        formatNumber(resolution.y) +
+        " dpi"
+    );
+}
+
+
+function isFiniteNumber(value) {
+    return Number.isFinite(value);
+}
+
+
+/* =========================================================
+   Ошибка: недостаточно данных
+   ========================================================= */
+
+class NeedMoreDataError extends Error {
+
+    constructor(message = "Недостаточно данных файла") {
+
+        super(message);
+
+        this.name = "NeedMoreDataError";
+    }
+}
+
+
+/* =========================================================
+   Проверка диапазона DataView
+   ========================================================= */
+
+function ensureRange(dv, offset, size) {
+
+    if (
+        offset < 0 ||
+        size < 0 ||
+        offset + size > dv.byteLength
+    ) {
+        throw new NeedMoreDataError();
+    }
+}
+
+
+/* =========================================================
+   安全读取
+   ========================================================= */
+
+function getU8(dv, offset) {
+
+    ensureRange(dv, offset, 1);
+
+    return dv.getUint8(offset);
+}
+
+
+function getI8(dv, offset) {
+
+    ensureRange(dv, offset, 1);
+
+    return dv.getInt8(offset);
+}
+
+
+function getU16(dv, offset, littleEndian = false) {
+
+    ensureRange(dv, offset, 2);
+
+    return dv.getUint16(offset, littleEndian);
+}
+
+
+function getI16(dv, offset, littleEndian = false) {
+
+    ensureRange(dv, offset, 2);
+
+    return dv.getInt16(offset, littleEndian);
+}
+
+
+function getU32(dv, offset, littleEndian = false) {
+
+    ensureRange(dv, offset, 4);
+
+    return dv.getUint32(offset, littleEndian);
+}
+
+
+function getI32(dv, offset, littleEndian = false) {
+
+    ensureRange(dv, offset, 4);
+
+    return dv.getInt32(offset, littleEndian);
+}
+
+
+function getU64(dv, offset, littleEndian = false) {
+
+    ensureRange(dv, offset, 8);
+
+    if (typeof dv.getBigUint64 === "function") {
+
+        const value =
+            dv.getBigUint64(offset, littleEndian);
+
+        const numberValue =
+            Number(value);
+
+        if (!Number.isSafeInteger(numberValue)) {
+            throw new Error("Слишком большое смещение файла");
+        }
+
+        return numberValue;
+    }
+
+    /*
+     * Для старых браузеров
+     */
+    const low =
+        getU32(
+            dv,
+            littleEndian ? offset : offset + 4,
+            littleEndian
+        );
+
+    const high =
+        getU32(
+            dv,
+            littleEndian ? offset + 4 : offset,
+            littleEndian
+        );
+
+    return high * 4294967296 + low;
+}
+
+
+function readASCII(dv, offset, length) {
+
+    ensureRange(dv, offset, length);
+
+    let result = "";
+
+    for (let i = 0; i < length; i++) {
+
+        result += String.fromCharCode(
+            dv.getUint8(offset + i)
+        );
+    }
+
+    return result;
+}
+
+
+/* =========================================================
+   Формат по расширению
+   ========================================================= */
+
+function extensionFormat(fileName) {
+
+    const parts =
+        fileName.toLowerCase().split(".");
+
+    if (parts.length < 2) {
+        return null;
+    }
+
+    const ext =
+        parts[parts.length - 1];
+
+    switch (ext) {
+
+        case "jpg":
+        case "jpeg":
+            return "JPEG";
+
+        case "gif":
+            return "GIF";
+
+        case "tif":
+        case "tiff":
+            return "TIFF";
+
+        case "bmp":
+            return "BMP";
+
+        case "png":
+            return "PNG";
+
+        case "pcx":
+            return "PCX";
+
+        default:
+            return null;
+    }
+}
+
+
+/* =========================================================
+   Magic Number 自动识别格式
+   ========================================================= */
+
+function detectFormat(fileName, buffer) {
+
+    const dv = new DataView(buffer);
+
+    /*
+     * JPEG
+     */
+    if (
+        dv.byteLength >= 2 &&
+        getU8(dv, 0) === 0xFF &&
+        getU8(dv, 1) === 0xD8
+    ) {
+        return "JPEG";
+    }
+
+    /*
+     * PNG
+     */
+    if (
+        dv.byteLength >= 8 &&
+        getU8(dv, 0) === 0x89 &&
+        getU8(dv, 1) === 0x50 &&
+        getU8(dv, 2) === 0x4E &&
+        getU8(dv, 3) === 0x47 &&
+        getU8(dv, 4) === 0x0D &&
+        getU8(dv, 5) === 0x0A &&
+        getU8(dv, 6) === 0x1A &&
+        getU8(dv, 7) === 0x0A
+    ) {
+        return "PNG";
+    }
+
+    /*
+     * GIF
+     */
+    if (
+        dv.byteLength >= 6
+    ) {
+
+        const signature =
+            readASCII(dv, 0, 6);
+
+        if (
+            signature === "GIF87a" ||
+            signature === "GIF89a"
+        ) {
+            return "GIF";
+        }
+    }
+
+    /*
+     * BMP
+     */
+    if (
+        dv.byteLength >= 2 &&
+        getU8(dv, 0) === 0x42 &&
+        getU8(dv, 1) === 0x4D
+    ) {
+        return "BMP";
+    }
+
+    /*
+     * TIFF
+     */
+    if (
+        dv.byteLength >= 4
+    ) {
+
+        const a = getU8(dv, 0);
+        const b = getU8(dv, 1);
+        const c = getU8(dv, 2);
+        const d = getU8(dv, 3);
+
+        const classicLittle =
+            a === 0x49 &&
+            b === 0x49 &&
+            c === 0x2A &&
+            d === 0x00;
+
+        const classicBig =
+            a === 0x4D &&
+            b === 0x4D &&
+            c === 0x00 &&
+            d === 0x2A;
+
+        const bigTiffLittle =
+            a === 0x49 &&
+            b === 0x49 &&
+            c === 0x2B &&
+            d === 0x00;
+
+        const bigTiffBig =
+            a === 0x4D &&
+            b === 0x4D &&
+            c === 0x00 &&
+            d === 0x2B;
+
+        if (
+            classicLittle ||
+            classicBig ||
+            bigTiffLittle ||
+            bigTiffBig
+        ) {
+            return "TIFF";
+        }
+    }
+
+    /*
+     * PCX
+     */
+    if (
+        dv.byteLength >= 2 &&
+        getU8(dv, 0) === 0x0A
+    ) {
+
+        const version =
+            getU8(dv, 1);
+
+        const encoding =
+            dv.byteLength >= 3
+                ? getU8(dv, 2)
+                : 0;
+
+        if (
+            version >= 0 &&
+            version <= 5 &&
+            encoding === 1
+        ) {
+            return "PCX";
+        }
+    }
+
+    /*
+     * Если Magic Number не определился,
+     * используем расширение как запасной вариант.
+     */
+    return extensionFormat(fileName);
+}
+
+
+/* =========================================================
+   BMP
+   ========================================================= */
+
+function parseBMP(buffer) {
+
+    const dv = new DataView(buffer);
+
+    ensureRange(dv, 0, 54);
+
+    if (
+        getU8(dv, 0) !== 0x42 ||
+        getU8(dv, 1) !== 0x4D
+    ) {
+        throw new Error("Неверный BMP файл");
+    }
+
+    const dibSize =
+        getU32(dv, 14, true);
+
+    let width;
+    let height;
+    let depth;
+    let compressionCode = 0;
+
+    let resolution = null;
+
+    let extra = [];
+
+
+    /*
+     * Старый BITMAPCOREHEADER
+     */
+    if (dibSize === 12) {
+
+        ensureRange(dv, 0, 26);
+
+        width =
+            getU16(dv, 18, true);
+
+        height =
+            getU16(dv, 20, true);
+
+        depth =
+            getU16(dv, 24, true);
+
+        extra.push("Заголовок: BITMAPCOREHEADER");
+
+    } else {
+
+        ensureRange(dv, 0, 54);
+
+        width =
+            getI32(dv, 18, true);
+
+        height =
+            getI32(dv, 22, true);
+
+        depth =
+            getU16(dv, 28, true);
+
+        compressionCode =
+            getU32(dv, 30, true);
+
+        /*
+         * В BMP отрицательная высота означает
+         * top-down bitmap.
+         */
+        const topDown =
+            height < 0;
+
+        height =
+            Math.abs(height);
+
+        if (topDown) {
+            extra.push("Ориентация: top-down");
+        } else {
+            extra.push("Ориентация: bottom-up");
+        }
+
+
+        /*
+         * Разрешение BMP:
+         * pixels per meter → dpi
+         */
+        const xppm =
+            getI32(dv, 38, true);
+
+        const yppm =
+            getI32(dv, 42, true);
+
+        if (
+            xppm > 0 &&
+            yppm > 0
+        ) {
+
+            resolution = {
+                x: xppm * 0.0254,
+                y: yppm * 0.0254
+            };
+        }
+
+        extra.push(
+            "Размер DIB-заголовка: " +
+            dibSize +
+            " байт"
+        );
+    }
+
+
+    const compressionMap = {
+
+        0: "BMP (без сжатия / BI_RGB)",
+        1: "BMP (RLE-8)",
+        2: "BMP (RLE-4)",
+        3: "BMP (Bitfields)",
+        4: "BMP (JPEG)",
+        5: "BMP (PNG)",
+        6: "BMP (Alpha Bitfields)",
+        11: "BMP (CMYK RLE-8)",
+        12: "BMP (CMYK RLE-4)"
+    };
+
+
+    const compression =
+        compressionMap[compressionCode] ||
+        ("BMP (код сжатия " +
+         compressionCode +
+         ")");
+
+
+    return {
+
+        format: "BMP",
+
+        width,
+        height,
+
+        resolution,
+
+        depth:
+            depth +
+            " bit/pixel",
+
+        compression,
+
+        extra:
+            extra.join("; ")
+    };
+}
+
+
+/* =========================================================
+   GIF
+   ========================================================= */
+
+function parseGIF(buffer) {
+
+    const dv = new DataView(buffer);
+
+    ensureRange(dv, 0, 13);
+
+    const signature =
+        readASCII(dv, 0, 6);
+
+    if (
+        signature !== "GIF87a" &&
+        signature !== "GIF89a"
+    ) {
+        throw new Error("Неверный GIF файл");
+    }
+
+    const width =
+        getU16(dv, 6, true);
+
+    const height =
+        getU16(dv, 8, true);
+
+    const packed =
+        getU8(dv, 10);
+
+    const backgroundColor =
+        getU8(dv, 11);
+
+    const pixelAspect =
+        getU8(dv, 12);
+
+
+    const hasGlobalPalette =
+        (packed & 0x80) !== 0;
+
+    const colorResolution =
+        ((packed >> 4) & 0x07) + 1;
+
+    const sortFlag =
+        (packed & 0x08) !== 0;
+
+    const paletteBits =
+        (packed & 0x07) + 1;
+
+    let paletteColors = null;
+
+    let depthText =
+        "Нет глобальной палитры";
+
+
+    if (hasGlobalPalette) {
+
+        paletteColors =
+            Math.pow(2, paletteBits);
+
+        depthText =
+            paletteBits +
+            " bit/pixel (палитра " +
+            paletteColors +
+            " цветов)";
+    }
+
+
+    const extra = [];
+
+    extra.push(
+        "Версия: " +
+        signature.substring(3)
+    );
+
+    extra.push(
+        "Color Resolution: " +
+        colorResolution +
+        " bit/channel"
+    );
+
+    extra.push(
+        "Фоновый цвет: " +
+        backgroundColor
+    );
+
+    if (sortFlag) {
+        extra.push(
+            "Порядок палитры: отсортирован"
+        );
+    }
+
+
+    /*
+     * GIF не имеет стандартного универсального
+     * поля DPI, поэтому не придумываем 72 dpi.
+     */
+    if (pixelAspect !== 0) {
+        extra.push(
+            "Pixel Aspect Ratio byte: " +
+            pixelAspect
+        );
+    }
+
+
+    return {
+
+        format: "GIF",
+
+        width,
+        height,
+
+        resolution: null,
+
+        depth:
+            depthText,
+
+        compression:
+            "GIF (LZW)",
+
+        extra:
+            extra.join("; ")
+    };
+}
+
+
+/* =========================================================
+   PNG
+   ========================================================= */
+
+function parsePNG(buffer) {
+
+    const dv = new DataView(buffer);
+
+    ensureRange(dv, 0, 33);
+
+
+    const pngSignature = [
+        0x89, 0x50, 0x4E, 0x47,
+        0x0D, 0x0A, 0x1A, 0x0A
+    ];
+
+
+    for (let i = 0; i < 8; i++) {
+
+        if (
+            getU8(dv, i) !==
+            pngSignature[i]
+        ) {
+            throw new Error("Неверный PNG файл");
+        }
+    }
+
+
+    const ihdrLength =
+        getU32(dv, 8, false);
+
+    const ihdrType =
+        readASCII(dv, 12, 4);
+
+
+    if (
+        ihdrType !== "IHDR" ||
+        ihdrLength !== 13
+    ) {
+        throw new Error(
+            "Некорректный PNG IHDR"
+        );
+    }
+
+
+    const width =
+        getU32(dv, 16, false);
+
+    const height =
+        getU32(dv, 20, false);
+
+    const bitDepth =
+        getU8(dv, 24);
+
+    const colorType =
+        getU8(dv, 25);
+
+    const compressionMethod =
+        getU8(dv, 26);
+
+    const filterMethod =
+        getU8(dv, 27);
+
+    const interlaceMethod =
+        getU8(dv, 28);
+
+
+    const colorTypeNames = {
+
+        0: "Grayscale",
+
+        2: "RGB",
+
+        3: "Indexed color",
+
+        4: "Grayscale + Alpha",
+
+        6: "RGBA"
+    };
+
+
+    const channelCount = {
+
+        0: 1,
+
+        2: 3,
+
+        3: 1,
+
+        4: 2,
+
+        6: 4
+    };
+
+
+    const colorTypeName =
+        colorTypeNames[colorType] ||
+        "Unknown";
+
+
+    const channels =
+        channelCount[colorType] ||
+        0;
+
+
+    let effectiveDepth;
+
+    if (channels > 0) {
+
+        effectiveDepth =
+            bitDepth * channels;
+
+    } else {
+
+        effectiveDepth =
+            null;
+    }
+
+
+    /*
+     * Ищем:
+     * PLTE
+     * pHYs
+     * IDAT
+     * IEND
+     */
+    let paletteColors = null;
+
+    let resolution = null;
+
+    let idatCount = 0;
+
+    let pos = 8;
+
+
+    while (pos + 8 <= dv.byteLength) {
+
+        const length =
+            getU32(dv, pos, false);
+
+        const type =
+            readASCII(dv, pos + 4, 4);
+
+        const dataPos =
+            pos + 8;
+
+        const nextPos =
+            dataPos + length + 4;
+
+        if (nextPos > dv.byteLength) {
+            throw new NeedMoreDataError();
+        }
+
+
+        /*
+         * PLTE
+         */
+        if (type === "PLTE") {
+
+            if (length % 3 === 0) {
+
+                paletteColors =
+                    length / 3;
+            }
+        }
+
+
+        /*
+         * pHYs:
+         *
+         * pixels per unit X (4)
+         * pixels per unit Y (4)
+         * unit 1 = meter
+         */
+        if (
+            type === "pHYs" &&
+            length >= 9
+        ) {
+
+            const xppu =
+                getU32(
+                    dv,
+                    dataPos,
+                    false
+                );
+
+            const yppu =
+                getU32(
+                    dv,
+                    dataPos + 4,
+                    false
+                );
+
+            const unit =
+                getU8(
+                    dv,
+                    dataPos + 8
+                );
+
+
+            if (
+                unit === 1 &&
+                xppu > 0 &&
+                yppu > 0
+            ) {
+
+                resolution = {
+
+                    x:
+                        xppu * 0.0254,
+
+                    y:
+                        yppu * 0.0254
+                };
+            }
+        }
+
+
+        if (type === "IDAT") {
+            idatCount++;
+        }
+
+
+        pos = nextPos;
+
+
+        if (type === "IEND") {
+            break;
+        }
+    }
+
+
+    const extra = [];
+
+    extra.push(
+        "Color type: " +
+        colorTypeName
+    );
+
+    extra.push(
+        "Bit depth/channel: " +
+        bitDepth
+    );
+
+    if (paletteColors !== null) {
+
+        extra.push(
+            "PLTE: " +
+            paletteColors +
+            " цветов"
+        );
+    }
+
+    extra.push(
+        "Compression method: " +
+        compressionMethod
+    );
+
+    extra.push(
+        "Filter method: " +
+        filterMethod
+    );
+
+    extra.push(
+        "Interlace: " +
+        (
+            interlaceMethod === 0
+                ? "нет"
+                : "Adam7"
+        )
+    );
+
+    extra.push(
+        "IDAT chunks: " +
+        idatCount
+    );
+
+
+    return {
+
+        format: "PNG",
+
+        width,
+        height,
+
+        resolution,
+
+        depth:
+            effectiveDepth !== null
+                ? effectiveDepth +
+                  " bit/pixel"
+                : (
+                    bitDepth +
+                    " bit/channel"
+                ),
+
+        compression:
+            "PNG (Deflate, без потерь)",
+
+        extra:
+            extra.join("; ")
+    };
+}
+
+
+/* =========================================================
+   PCX
+   ========================================================= */
+
+function parsePCX(buffer) {
+
+    const dv = new DataView(buffer);
+
+    ensureRange(dv, 0, 128);
+
+
+    const manufacturer =
+        getU8(dv, 0);
+
+    const version =
+        getU8(dv, 1);
+
+    const encoding =
+        getU8(dv, 2);
+
+    const bitsPerPixel =
+        getU8(dv, 3);
+
+
+    if (manufacturer !== 0x0A) {
+        throw new Error("Неверный PCX файл");
+    }
+
+
+    const minX =
+        getU16(dv, 4, true);
+
+    const minY =
+        getU16(dv, 6, true);
+
+    const maxX =
+        getU16(dv, 8, true);
+
+    const maxY =
+        getU16(dv, 10, true);
+
+
+    const width =
+        maxX - minX + 1;
+
+    const height =
+        maxY - minY + 1;
+
+
+    const horizontalDpi =
+        getU16(dv, 12, true);
+
+    const verticalDpi =
+        getU16(dv, 14, true);
+
+
+    const colorPlanes =
+        getU8(dv, 65);
+
+    const bytesPerLine =
+        getU16(dv, 66, true);
+
+    const paletteInfo =
+        getU16(dv, 68, true);
+
+
+    let resolution = null;
+
+    if (
+        horizontalDpi > 0 &&
+        verticalDpi > 0
+    ) {
+
+        resolution = {
+
+            x: horizontalDpi,
+
+            y: verticalDpi
+        };
+    }
+
+
+    const totalDepth =
+        bitsPerPixel * colorPlanes;
+
+
+    const extra = [];
+
+    extra.push(
+        "Версия PCX: " +
+        version
+    );
+
+    extra.push(
+        "Кодирование: " +
+        (
+            encoding === 1
+                ? "RLE"
+                : "неизвестно"
+        )
+    );
+
+    extra.push(
+        "Плоскостей: " +
+        colorPlanes
+    );
+
+    extra.push(
+        "BytesPerLine: " +
+        bytesPerLine
+    );
+
+    extra.push(
+        "PaletteInfo: " +
+        paletteInfo
+    );
+
+
+    return {
+
+        format: "PCX",
+
+        width,
+        height,
+
+        resolution,
+
+        depth:
+            totalDepth +
+            " bit/pixel",
+
+        compression:
+            "PCX (RLE)",
+
+        extra:
+            extra.join("; ")
+    };
+}
+
+
+/* =========================================================
+   TIFF
+   ========================================================= */
+
+/*
+ * TIFF data types
+ *
+ * 1 BYTE
+ * 2 ASCII
+ * 3 SHORT
+ * 4 LONG
+ * 5 RATIONAL
+ * 6 SBYTE
+ * 7 UNDEFINED
+ * 8 SSHORT
+ * 9 SLONG
+ * 10 SRATIONAL
+ * 11 FLOAT
+ * 12 DOUBLE
+ */
+
+const TIFF_TYPE_SIZE = {
+
+    1: 1,
+    2: 1,
+    3: 2,
+    4: 4,
+    5: 8,
+    6: 1,
+    7: 1,
+    8: 2,
+    9: 4,
+    10: 8,
+    11: 4,
+    12: 8
+};
+
+
+function readTiffValues(
+    dv,
+    entryPos,
+    type,
+    count,
+    littleEndian,
+    isBigTiff
+) {
+
+    if (!TIFF_TYPE_SIZE[type]) {
+        throw new Error(
+            "Неподдерживаемый TIFF type: " +
+            type
+        );
+    }
+
+
+    const typeSize =
+        TIFF_TYPE_SIZE[type];
+
+    const totalBytes =
+        typeSize * count;
+
+
+    const inlineBytes =
+        isBigTiff
+            ? 8
+            : 4;
+
+
+    const valueFieldPos =
+        entryPos +
+        (
+            isBigTiff
+                ? 12
+                : 8
+        );
+
+
+    let dataPos;
+
+
+    if (totalBytes <= inlineBytes) {
+
+        dataPos =
+            valueFieldPos;
+
+    } else {
+
+        const offset =
+            isBigTiff
+                ? getU64(
+                    dv,
+                    valueFieldPos,
+                    littleEndian
+                )
+                : getU32(
+                    dv,
+                    valueFieldPos,
+                    littleEndian
+                );
+
+
+        /*
+         * Смещение TIFF относительно начала TIFF-области
+         */
+        dataPos =
+            offset;
+    }
+
+
+    /*
+     * Вызвавшая функция позже прибавляет base.
+     * Здесь временно возвращаем смещение.
+     */
+    const values = [];
+
+
+    for (
+        let i = 0;
+        i < count;
+        i++
+    ) {
+
+        const p =
+            dataPos + i * typeSize;
+
+
+        switch (type) {
+
+            case 1:
+                values.push(
+                    getU8(dv, p)
+                );
+                break;
+
+
+            case 2:
+
+                values.push(
+                    getU8(dv, p)
+                );
+                break;
+
+
+            case 3:
+
+                values.push(
+                    getU16(
+                        dv,
+                        p,
+                        littleEndian
+                    )
+                );
+                break;
+
+
+            case 4:
+
+                values.push(
+                    getU32(
+                        dv,
+                        p,
+                        littleEndian
+                    )
+                );
+                break;
+
+
+            case 5: {
+
+                const numerator =
+                    getU32(
+                        dv,
+                        p,
+                        littleEndian
+                    );
+
+                const denominator =
+                    getU32(
+                        dv,
+                        p + 4,
+                        littleEndian
+                    );
+
+                values.push(
+                    denominator !== 0
+                        ? numerator / denominator
+                        : null
+                );
+
+                break;
+            }
+
+
+            case 6:
+
+                values.push(
+                    getI8(dv, p)
+                );
+                break;
+
+
+            case 7:
+
+                values.push(
+                    getU8(dv, p)
+                );
+                break;
+
+
+            case 8:
+
+                values.push(
+                    getI16(
+                        dv,
+                        p,
+                        littleEndian
+                    )
+                );
+                break;
+
+
+            case 9:
+
+                values.push(
+                    getI32(
+                        dv,
+                        p,
+                        littleEndian
+                    )
+                );
+                break;
+
+
+            case 10: {
+
+                const numerator =
+                    getI32(
+                        dv,
+                        p,
+                        littleEndian
+                    );
+
+                const denominator =
+                    getI32(
+                        dv,
+                        p + 4,
+                        littleEndian
+                    );
+
+                values.push(
+                    denominator !== 0
+                        ? numerator / denominator
+                        : null
+                );
+
+                break;
+            }
+
+
+            case 11: {
+
+                ensureRange(
+                    dv,
+                    p,
+                    4
+                );
+
+                values.push(
+                    dv.getFloat32(
+                        p,
+                        littleEndian
+                    )
+                );
+
+                break;
+            }
+
+
+            case 12: {
+
+                ensureRange(
+                    dv,
+                    p,
+                    8
+                );
+
+                values.push(
+                    dv.getFloat64(
+                        p,
+                        littleEndian
+                    )
+                );
+
+                break;
+            }
+        }
+    }
+
+
+    /*
+     * 对于 count > 1 且数据存放在 offset 中，
+     * 这里第一次得到的是相对于 TIFF base 的 offset。
+     *
+     * 所以需要特殊重新读取。
+     *
+     * 判断数据是否在当前 buffer 中。
+     */
+    if (totalBytes > inlineBytes) {
+
+        const offset =
+            isBigTiff
+                ? getU64(
+                    dv,
+                    valueFieldPos,
+                    littleEndian
+                )
+                : getU32(
+                    dv,
+                    valueFieldPos,
+                    littleEndian
+                );
+
+        /*
+         * 当前函数没有 base 参数。
+         * 外部在创建 DataView 时已经通过
+         * slicing 的方式处理 TIFF base。
+         */
+        void offset;
+    }
+
+
+    return values;
+}
+
+
+/*
+ * 为了正确处理嵌入式 EXIF TIFF，
+ * 使用一个带 base 的 TIFF 解析函数。
+ */
+function parseTIFF(buffer, baseOffset = 0) {
+
+    const dv = new DataView(buffer);
+
+    ensureRange(
+        dv,
+        baseOffset,
+        8
+    );
+
+
+    const byte0 =
+        getU8(dv, baseOffset);
+
+    const byte1 =
+        getU8(dv, baseOffset + 1);
+
+
+    let littleEndian;
+
+
+    if (
+        byte0 === 0x49 &&
+        byte1 === 0x49
+    ) {
+
+        littleEndian = true;
+
+    } else if (
+        byte0 === 0x4D &&
+        byte1 === 0x4D
+    ) {
+
+        littleEndian = false;
+
+    } else {
+
+        throw new Error(
+            "Неизвестный порядок байтов TIFF"
+        );
+    }
+
+
+    const magic =
+        getU16(
+            dv,
+            baseOffset + 2,
+            littleEndian
+        );
+
+
+    let isBigTiff = false;
+
+    let firstIFDOffset;
+
+
+    if (magic === 42) {
+
+        firstIFDOffset =
+            getU32(
+                dv,
+                baseOffset + 4,
+                littleEndian
+            );
+
+    } else if (magic === 43) {
+
+        isBigTiff = true;
+
+        const offsetSize =
+            getU16(
+                dv,
+                baseOffset + 4,
+                littleEndian
+            );
+
+        const zero =
+            getU16(
+                dv,
+                baseOffset + 6,
+                littleEndian
+            );
+
+
+        if (
+            offsetSize !== 8 ||
+            zero !== 0
+        ) {
+            throw new Error(
+                "Неподдерживаемый BigTIFF"
+            );
+        }
+
+
+        firstIFDOffset =
+            getU64(
+                dv,
+                baseOffset + 8,
+                littleEndian
+            );
+
+    } else {
+
+        throw new Error(
+            "Неверный TIFF magic"
+        );
+    }
+
+
+    /*
+     * TIFF offset относителен TIFF base.
+     */
+    const ifdPos =
+        baseOffset +
+        firstIFDOffset;
+
+
+    let entryCount;
+
+    let entrySize;
+
+
+    if (isBigTiff) {
+
+        entryCount =
+            getU64(
+                dv,
+                ifdPos,
+                littleEndian
+            );
+
+        entrySize = 20;
+
+    } else {
+
+        entryCount =
+            getU16(
+                dv,
+                ifdPos,
+                littleEndian
+            );
+
+        entrySize = 12;
+    }
+
+
+    /*
+     * Для защиты от битых файлов
+     */
+    if (
+        entryCount > 100000
+    ) {
+        throw new Error(
+            "Слишком много TIFF записей IFD"
+        );
+    }
+
+
+    let width = null;
+    let height = null;
+
+    let bitsPerSample = [];
+
+    let samplesPerPixel = null;
+
+    let compressionCode = null;
+
+    let photometric = null;
+
+    let xResolution = null;
+
+    let yResolution = null;
+
+    let resolutionUnit = null;
+
+    let orientation = null;
+
+
+    const entriesExtra = [];
+
+
+    for (
+        let i = 0;
+        i < entryCount;
+        i++
+    ) {
+
+        const entryPos =
+            ifdPos +
+            (
+                isBigTiff
+                    ? 8
+                    : 2
+            ) +
+            i * entrySize;
+
+
+        ensureRange(
+            dv,
+            entryPos,
+            entrySize
+        );
+
+
+        const tag =
+            getU16(
+                dv,
+                entryPos,
+                littleEndian
+            );
+
+        const type =
+            getU16(
+                dv,
+                entryPos + 2,
+                littleEndian
+            );
+
+
+        let count;
+
+
+        if (isBigTiff) {
+
+            count =
+                getU64(
+                    dv,
+                    entryPos + 4,
+                    littleEndian
+                );
+
+        } else {
+
+            count =
+                getU32(
+                    dv,
+                    entryPos + 4,
+                    littleEndian
+                );
+        }
+
+
+        /*
+         * Ограничиваем count для безопасности.
+         */
+        if (count > 1000000) {
+            throw new Error(
+                "Слишком большое количество значений TIFF"
+            );
+        }
+
+
+        /*
+         * Получаем raw offset / inline данные.
+         */
+        const typeSize =
+            TIFF_TYPE_SIZE[type];
+
+
+        if (!typeSize) {
+            continue;
+        }
+
+
+        const totalBytes =
+            typeSize * count;
+
+
+        const valueFieldPos =
+            entryPos +
+            (
+                isBigTiff
+                    ? 12
+                    : 8
+            );
+
+
+        const inlineBytes =
+            isBigTiff
+                ? 8
+                : 4;
+
+
+        let dataPos;
+
+
+        if (
+            totalBytes <= inlineBytes
+        ) {
+
+            dataPos =
+                valueFieldPos;
+
+        } else {
+
+            const relOffset =
+                isBigTiff
+
+                    ? getU64(
+                        dv,
+                        valueFieldPos,
+                        littleEndian
+                    )
+
+                    : getU32(
+                        dv,
+                        valueFieldPos,
+                        littleEndian
+                    );
+
+
+            dataPos =
+                baseOffset +
+                relOffset;
+        }
+
+
+        /*
+         * 只读取我们真正需要的标签
+         */
+        const interesting =
+            (
+                tag === 256 ||
+                tag === 257 ||
+                tag === 258 ||
+                tag === 259 ||
+                tag === 262 ||
+                tag === 277 ||
+                tag === 282 ||
+                tag === 283 ||
+                tag === 296 ||
+                tag === 274
+            );
+
+
+        if (!interesting) {
+            continue;
+        }
+
+
+        /*
+         * 读取数值
+         */
+        const values = [];
+
+
+        for (
+            let j = 0;
+            j < count;
+            j++
+        ) {
+
+            const p =
+                dataPos +
+                j * typeSize;
+
+
+            switch (type) {
+
+                case 1:
+                    values.push(
+                        getU8(dv, p)
+                    );
+                    break;
+
+
+                case 3:
+                    values.push(
+                        getU16(
+                            dv,
+                            p,
+                            littleEndian
+                        )
+                    );
+                    break;
+
+
+                case 4:
+                    values.push(
+                        getU32(
+                            dv,
+                            p,
+                            littleEndian
+                        )
+                    );
+                    break;
+
+
+                case 5: {
+
+                    const num =
+                        getU32(
+                            dv,
+                            p,
+                            littleEndian
+                        );
+
+                    const den =
+                        getU32(
+                            dv,
+                            p + 4,
+                            littleEndian
+                        );
+
+                    values.push(
+                        den !== 0
+                            ? num / den
+                            : null
+                    );
+
+                    break;
+                }
+
+
+                case 8:
+                    values.push(
+                        getI16(
+                            dv,
+                            p,
+                            littleEndian
+                        )
+                    );
+                    break;
+
+
+                case 9:
+                    values.push(
+                        getI32(
+                            dv,
+                            p,
+                            littleEndian
+                        )
+                    );
+                    break;
+
+
+                case 10: {
+
+                    const num =
+                        getI32(
+                            dv,
+                            p,
+                            littleEndian
+                        );
+
+                    const den =
+                        getI32(
+                            dv,
+                            p + 4,
+                            littleEndian
+                        );
+
+                    values.push(
+                        den !== 0
+                            ? num / den
+                            : null
+                    );
+
+                    break;
+                }
+
+
+                default:
+                    /*
+                     * 常用图像信息标签一般不会
+                     * 使用其他类型。
+                     */
+                    break;
+            }
+        }
+
+
+        if (values.length === 0) {
+            continue;
+        }
+
+
+        switch (tag) {
+
+            /*
+             * ImageWidth
+             */
+            case 256:
+
+                width =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * ImageLength
+             */
+            case 257:
+
+                height =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * BitsPerSample
+             */
+            case 258:
+
+                bitsPerSample =
+                    values.map(Number);
+
+                break;
+
+
+            /*
+             * Compression
+             */
+            case 259:
+
+                compressionCode =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * PhotometricInterpretation
+             */
+            case 262:
+
+                photometric =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * SamplesPerPixel
+             */
+            case 277:
+
+                samplesPerPixel =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * XResolution
+             */
+            case 282:
+
+                xResolution =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * YResolution
+             */
+            case 283:
+
+                yResolution =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * ResolutionUnit
+             *
+             * 1 = none
+             * 2 = inch
+             * 3 = centimeter
+             */
+            case 296:
+
+                resolutionUnit =
+                    Number(values[0]);
+
+                break;
+
+
+            /*
+             * Orientation
+             */
+            case 274:
+
+                orientation =
+                    Number(values[0]);
+
+                break;
+        }
+    }
+
+
+    /*
+     * 计算颜色深度
+     *
+     * RGB TIFF 常见：
+     * BitsPerSample = [8,8,8]
+     *
+     * => 24 bit
+     */
+    let totalDepth = null;
+
+
+    if (
+        bitsPerSample.length > 0
+    ) {
+
+        /*
+         * 如果多个通道拥有相同 bit depth，
+         * 直接求和。
+         *
+         * 例如 [8,8,8] = 24 bit
+         */
+        totalDepth =
+            bitsPerSample.reduce(
+                (sum, value) =>
+                    sum + Number(value),
+                0
+            );
+
+    } else if (
+        samplesPerPixel !== null
+    ) {
+
+        totalDepth =
+            "未知/每通道信息缺失";
+    }
+
+
+    /*
+     * 如果没有 BitsPerSample，
+     * 但有 SamplesPerPixel，
+     * 给出尽可能合理的说明。
+     */
+    let depthText;
+
+
+    if (
+        typeof totalDepth === "number"
+    ) {
+
+        depthText =
+            totalDepth +
+            " bit/pixel";
+
+    } else if (
+        samplesPerPixel !== null
+    ) {
+
+        depthText =
+            "SamplesPerPixel=" +
+            samplesPerPixel;
+
+    } else {
+
+        depthText =
+            "Нет данных";
+    }
+
+
+    /*
+     * TIFF 压缩方式
+     */
+    const compressionMap = {
+
+        1: "None (без сжатия)",
+
+        2: "CCITT RLE",
+
+        3: "CCITT Group 3 Fax",
+
+        4: "CCITT Group 4 Fax",
+
+        5: "LZW",
+
+        6: "JPEG",
+
+        7: "PackBits",
+
+        8: "Deflate",
+
+        9: "Deflate",
+
+        32773: "PackBits",
+
+        32946: "Deflate",
+
+        34676: "SGILog",
+
+        34677: "SGILog24"
+    };
+
+
+    const compression =
+        compressionMap[
+            compressionCode
+        ] ||
+        (
+            compressionCode !== null
+                ? "Код " + compressionCode
+                : "Unknown"
+        );
+
+
+    /*
+     * 计算 DPI
+     */
+    let resolution = null;
+
+    if (
+        isFiniteNumber(xResolution) &&
+        isFiniteNumber(yResolution)
+    ) {
+
+        if (resolutionUnit === 2) {
+
+            /*
+             * inch
+             */
+            resolution = {
+
+                x: xResolution,
+
+                y: yResolution
+            };
+
+        } else if (
+            resolutionUnit === 3
+        ) {
+
+            /*
+             * centimeter -> inch
+             */
+            resolution = {
+
+                x:
+                    xResolution * 2.54,
+
+                y:
+                    yResolution * 2.54
+            };
+        }
+    }
+
+
+    const extra = [];
+
+
+    extra.push(
+        isBigTiff
+            ? "BigTIFF"
+            : "Classic TIFF"
+    );
+
+
+    if (
+        samplesPerPixel !== null
+    ) {
+
+        extra.push(
+            "SamplesPerPixel: " +
+            samplesPerPixel
+        );
+    }
+
+
+    if (
+        bitsPerSample.length > 0
+    ) {
+
+        extra.push(
+            "BitsPerSample: [" +
+            bitsPerSample.join(", ") +
+            "]"
+        );
+    }
+
+
+    if (
+        resolutionUnit === 2
+    ) {
+
+        extra.push(
+            "ResolutionUnit: inch"
+        );
+
+    } else if (
+        resolutionUnit === 3
+    ) {
+
+        extra.push(
+            "ResolutionUnit: centimeter"
+        );
+
+    } else if (
+        resolutionUnit === 1
+    ) {
+
+        extra.push(
+            "ResolutionUnit: none"
+        );
+    }
+
+
+    if (
+        photometric !== null
+    ) {
+
+        const photoMap = {
+
+            0: "WhiteIsZero",
+            1: "BlackIsZero",
+            2: "RGB",
+            3: "Palette",
+            4: "Transparency Mask",
+            5: "CMYK",
+            6: "YCbCr",
+            8: "CIELab"
+        };
+
+
+        extra.push(
+            "Photometric: " +
+            (
+                photoMap[photometric] ||
+                photometric
+            )
+        );
+    }
+
+
+    if (
+        orientation !== null
+    ) {
+
+        extra.push(
+            "Orientation: " +
+            orientation
+        );
+    }
+
+
+    return {
+
+        format: "TIFF",
+
+        width,
+        height,
+
+        resolution,
+
+        depth:
+            depthText,
+
+        compression,
+
+        extra:
+            extra.join("; ")
+    };
+}
+
+
+/* =========================================================
+   JPEG
+   ========================================================= */
+
+function isJpegSOF(marker) {
+
+    return (
+
+        marker === 0xC0 ||
+        marker === 0xC1 ||
+        marker === 0xC2 ||
+        marker === 0xC3 ||
+
+        marker === 0xC5 ||
+        marker === 0xC6 ||
+        marker === 0xC7 ||
+
+        marker === 0xC9 ||
+        marker === 0xCA ||
+        marker === 0xCB ||
+
+        marker === 0xCD ||
+        marker === 0xCE ||
+        marker === 0xCF
+    );
+}
+
+
+function jpegCompressionName(marker) {
+
+    const names = {
+
+        0xC0:
+            "JPEG (Baseline DCT, с потерями)",
+
+        0xC1:
+            "JPEG (Extended Sequential DCT, с потерями)",
+
+        0xC2:
+            "JPEG (Progressive DCT, с потерями)",
+
+        0xC3:
+            "JPEG (Lossless)",
+
+        0xC5:
+            "JPEG (Differential Sequential DCT)",
+
+        0xC6:
+            "JPEG (Differential Progressive DCT)",
+
+        0xC7:
+            "JPEG (Differential Lossless)",
+
+        0xC9:
+            "JPEG (Extended Sequential Arithmetic)",
+
+        0xCA:
+            "JPEG (Progressive Arithmetic)",
+
+        0xCB:
+            "JPEG (Lossless Arithmetic)",
+
+        0xCD:
+            "JPEG (Differential Sequential Arithmetic)",
+
+        0xCE:
+            "JPEG (Differential Progressive Arithmetic)",
+
+        0xCF:
+            "JPEG (Differential Lossless Arithmetic)"
+    };
+
+
+    return names[marker] ||
+        "JPEG";
+}
+
+
+function parseJPEG(buffer) {
+
+    const dv = new DataView(buffer);
+
+    ensureRange(dv, 0, 2);
+
+
+    if (
+        getU8(dv, 0) !== 0xFF ||
+        getU8(dv, 1) !== 0xD8
+    ) {
+
+        throw new Error(
+            "Неверный JPEG файл"
+        );
+    }
+
+
+    let pos = 2;
+
+    let width = null;
+
+    let height = null;
+
+    let precision = null;
+
+    let components = null;
+
+    let sofMarker = null;
+
+    let quantizationTables = 0;
+
+    let jfifResolution = null;
+
+    let exifResolution = null;
+
+    let jfifVersion = null;
+
+    let sawSOS = false;
+
+
+    while (
+        pos < dv.byteLength
+    ) {
+
+        /*
+         * Ищем 0xFF
+         */
+        if (
+            getU8(dv, pos) !== 0xFF
+        ) {
+
+            pos++;
+
+            continue;
+        }
+
+
+        /*
+         * Пропускаем fill bytes FF
+         */
+        while (
+            pos < dv.byteLength &&
+            getU8(dv, pos) === 0xFF
+        ) {
+
+            pos++;
+        }
+
+
+        if (
+            pos >= dv.byteLength
+        ) {
+            break;
+        }
+
+
+        const marker =
+            getU8(dv, pos);
+
+        pos++;
+
+
+        /*
+         * Маркеры без длины
+         */
+        if (
+            marker === 0xD8 ||
+            marker === 0xD9 ||
+            (
+                marker >= 0xD0 &&
+                marker <= 0xD7
+            ) ||
+            marker === 0x01
+        ) {
+
+            if (marker === 0xD9) {
+                break;
+            }
+
+            continue;
+        }
+
+
+        /*
+         * Есть длина сегмента
+         */
+        ensureRange(
+            dv,
+            pos,
+            2
+        );
+
+
+        const segmentLength =
+            getU16(
+                dv,
+                pos,
+                false
+            );
+
+
+        if (segmentLength < 2) {
+            throw new Error(
+                "Некорректная JPEG структура"
+            );
+        }
+
+
+        const segmentData =
+            pos + 2;
+
+        const segmentEnd =
+            pos +
+            segmentLength;
+
+
+        ensureRange(
+            dv,
+            segmentData,
+            segmentLength - 2
+        );
+
+
+        /*
+         * APP0 — JFIF
+         */
+        if (
+            marker === 0xE0 &&
+            segmentLength >= 16
+        ) {
+
+            const identifier =
+                readASCII(
+                    dv,
+                    segmentData,
+                    5
+                );
+
+
+            if (
+                identifier === "JFIF\0"
+            ) {
+
+                const major =
+                    getU8(
+                        dv,
+                        segmentData + 5
+                    );
+
+                const minor =
+                    getU8(
+                        dv,
+                        segmentData + 6
+                    );
+
+                jfifVersion =
+                    major +
+                    "." +
+                    minor;
+
+
+                const units =
+                    getU8(
+                        dv,
+                        segmentData + 7
+                    );
+
+                const xDensity =
+                    getU16(
+                        dv,
+                        segmentData + 8,
+                        false
+                    );
+
+                const yDensity =
+                    getU16(
+                        dv,
+                        segmentData + 10,
+                        false
+                    );
+
+
+                if (
+                    xDensity > 0 &&
+                    yDensity > 0
+                ) {
+
+                    if (units === 1) {
+
+                        /*
+                         * dpi
+                         */
+                        jfifResolution = {
+
+                            x: xDensity,
+
+                            y: yDensity
+                        };
+
+                    } else if (
+                        units === 2
+                    ) {
+
+                        /*
+                         * dots/cm -> dpi
+                         */
+                        jfifResolution = {
+
+                            x:
+                                xDensity *
+                                2.54,
+
+                            y:
+                                yDensity *
+                                2.54
+                        };
+                    }
+                }
+            }
+        }
+
+
+        /*
+         * APP1 — EXIF
+         */
+        if (
+            marker === 0xE1 &&
+            segmentLength >= 8
+        ) {
+
+            const identifier =
+                readASCII(
+                    dv,
+                    segmentData,
+                    6
+                );
+
+
+            if (
+                identifier === "Exif\0\0"
+            ) {
+
+                try {
+
+                    const exifBase =
+                        segmentData + 6;
+
+                    const exifInfo =
+                        parseTIFF(
+                            buffer,
+                            exifBase
+                        );
+
+
+                    if (
+                        exifInfo.resolution
+                    ) {
+
+                        exifResolution =
+                            exifInfo.resolution;
+                    }
+
+                } catch (e) {
+
+                    /*
+                     * EXIF解析失败不影响JPEG主体解析
+                     */
+                }
+            }
+        }
+
+
+        /*
+         * DQT
+         */
+        if (marker === 0xDB) {
+
+            quantizationTables++;
+        }
+
+
+        /*
+         * SOF
+         */
+        if (
+            isJpegSOF(marker)
+        ) {
+
+            /*
+             * segmentData:
+             * +0 Precision
+             * +1..2 Height
+             * +3..4 Width
+             * +5 Components
+             */
+            ensureRange(
+                dv,
+                segmentData,
+                6
+            );
+
+
+            precision =
+                getU8(
+                    dv,
+                    segmentData
+                );
+
+
+            height =
+                getU16(
+                    dv,
+                    segmentData + 1,
+                    false
+                );
+
+
+            width =
+                getU16(
+                    dv,
+                    segmentData + 3,
+                    false
+                );
+
+
+            components =
+                getU8(
+                    dv,
+                    segmentData + 5
+                );
+
+
+            sofMarker =
+                marker;
+        }
+
+
+        /*
+         * SOS 之后一般就是压缩图像数据
+         */
+        if (marker === 0xDA) {
+
+            sawSOS = true;
+
+            break;
+        }
+
+
+        pos =
+            segmentEnd;
+    }
+
+
+    if (
+        width === null ||
+        height === null
+    ) {
+
+        throw new Error(
+            "Не удалось найти JPEG SOF"
+        );
+    }
+
+
+    /*
+     * 颜色深度 = 精度 × 组件数量
+     */
+    let depthText = "Нет данных";
+
+
+    if (
+        precision !== null &&
+        components !== null
+    ) {
+
+        depthText =
+            (
+                precision *
+                components
+            ) +
+            " bit/pixel (" +
+            precision +
+            " bit/channel, " +
+            components +
+            " channels)";
+    }
+
+
+    /*
+     * 优先使用 EXIF，
+     * 其次使用 JFIF。
+     */
+    const resolution =
+        exifResolution ||
+        jfifResolution ||
+        null;
+
+
+    const extra = [];
+
+
+    if (jfifVersion !== null) {
+
+        extra.push(
+            "JFIF: " +
+            jfifVersion
+        );
+    }
+
+
+    if (exifResolution) {
+
+        extra.push(
+            "EXIF Resolution"
+        );
+
+    } else if (jfifResolution) {
+
+        extra.push(
+            "JFIF Resolution"
+        );
+    }
+
+
+    extra.push(
+        "SOF marker: 0x" +
+        sofMarker
+            .toString(16)
+            .toUpperCase()
+            .padStart(2, "0")
+    );
+
+
+    extra.push(
+        "DQT: " +
+        quantizationTables
+    );
+
+
+    if (sawSOS) {
+
+        extra.push(
+            "Scan data обнаружен"
+        );
+    }
+
+
+    return {
+
+        format: "JPEG",
+
+        width,
+        height,
+
+        resolution,
+
+        depth:
+            depthText,
+
+        compression:
+            jpegCompressionName(
+                sofMarker
+            ),
+
+        extra:
+            extra.join("; ")
+    };
+}
+
+
+/* =========================================================
+   主解析入口
+   ========================================================= */
+
+function parseImage(file, buffer) {
+
+    const format =
+        detectFormat(
+            file.name,
+            buffer
+        );
+
+
+    if (!format) {
+
+        throw new Error(
+            "Неподдерживаемый формат файла"
+        );
+    }
+
+
+    switch (format) {
+
+        case "BMP":
+            return parseBMP(buffer);
+
+        case "GIF":
+            return parseGIF(buffer);
+
+        case "PNG":
+            return parsePNG(buffer);
+
+        case "TIFF":
+            return parseTIFF(buffer);
+
+        case "JPEG":
+            return parseJPEG(buffer);
+
+        case "PCX":
+            return parsePCX(buffer);
+
+        default:
+            throw new Error(
+                "Неподдерживаемый формат: " +
+                format
+            );
+    }
+}
+
+
+/* =========================================================
+   读取文件前 N 字节
+   ========================================================= */
+
+async function readFilePart(
+    file,
+    maxBytes
+) {
+
+    const size =
+        Math.min(
+            file.size,
+            maxBytes
+        );
+
+
+    const blob =
+        file.slice(
+            0,
+            size
+        );
+
+
+    return await blob.arrayBuffer();
+}
+
+
+/* =========================================================
+   判断是否可能是支持的文件
+   ========================================================= */
+
+function isSupportedByName(file) {
+
+    const format =
+        extensionFormat(file.name);
+
+    return format !== null;
+}
+
+
+/* =========================================================
+   处理单个文件
+   ========================================================= */
+
+async function processFile(file) {
+
+    try {
+
+        /*
+         * 第一阶段：
+         * 只读取文件头附近数据
+         */
+        let buffer =
+            await readFilePart(
+                file,
+                INITIAL_READ_SIZE
+            );
+
+
+        let info;
+
+
+        try {
+
+            info =
+                parseImage(
+                    file,
+                    buffer
+                );
+
+        } catch (error) {
+
+            /*
+             * 如果是“数据不够”，
+             * 尝试读取整个文件。
+             *
+             * 对普通 JPG/PNG/BMP/GIF/PCX，
+             * 通常不会走到这里。
+             */
+            if (
+                error instanceof NeedMoreDataError &&
+                file.size > buffer.byteLength
+            ) {
+
+                buffer =
+                    await file.arrayBuffer();
+
+
+                info =
+                    parseImage(
+                        file,
+                        buffer
+                    );
+
+            } else {
+
+                throw error;
+            }
+        }
+
+
+        return {
+
+            ok: true,
+
+            file,
+
+            info
+        };
+
+
+    } catch (error) {
+
+        return {
+
+            ok: false,
+
+            file,
+
+            error
+        };
+    }
+}
+
+
+/* =========================================================
+   创建表格单元格
+   ========================================================= */
+
+function createCell(text, className = "") {
+
+    const td =
+        document.createElement("td");
+
+    if (className) {
+        td.className = className;
+    }
+
+    td.textContent =
+        text === null ||
+        text === undefined
+            ? "—"
+            : String(text);
+
+    return td;
+}
+
+
+/* =========================================================
+   创建结果表格行
+   ========================================================= */
+
+function createResultRow(result) {
+
+    const tr =
+        document.createElement("tr");
+
+
+    /*
+     * 错误行
+     */
+    if (!result.ok) {
+
+        tr.appendChild(
+            createCell(
+                result.file.name,
+                "file-name"
+            )
+        );
+
+        tr.appendChild(
+            createCell("—")
+        );
+
+        tr.appendChild(
+            createCell("—")
+        );
+
+        tr.appendChild(
+            createCell("—")
+        );
+
+        tr.appendChild(
+            createCell("—")
+        );
+
+
+        const td =
+            document.createElement("td");
+
+        td.className =
+            "error extra-info";
+
+        td.textContent =
+            "Ошибка: " +
+            (
+                result.error?.message ||
+                "Неизвестная ошибка"
+            );
+
+        tr.appendChild(td);
+
+        return tr;
+    }
+
+
+    /*
+     * 正常行
+     */
+
+    const info =
+        result.info;
+
+
+    /*
+     * 文件名
+     */
+    const fileCell =
+        document.createElement("td");
+
+    fileCell.className =
+        "file-name";
+
+
+    const tag =
+        document.createElement("span");
+
+    tag.className =
+        "format-tag";
+
+    tag.textContent =
+        info.format;
+
+
+    const nameSpan =
+        document.createElement("span");
+
+    nameSpan.textContent =
+        result.file.name;
+
+
+    fileCell.appendChild(tag);
+    fileCell.appendChild(nameSpan);
+
+
+    tr.appendChild(fileCell);
+
+
+    /*
+     * Size
+     */
+    tr.appendChild(
+        createCell(
+            info.width !== null &&
+            info.height !== null
+
+                ? (
+                    info.width +
+                    " × " +
+                    info.height
+                )
+
+                : "Нет данных"
+        )
+    );
+
+
+    /*
+     * Resolution
+     */
+    tr.appendChild(
+        createCell(
+            formatDpi(
+                info.resolution
+            )
+        )
+    );
+
+
+    /*
+     * Color depth
+     */
+    tr.appendChild(
+        createCell(
+            info.depth
+        )
+    );
+
+
+    /*
+     * Compression
+     */
+    tr.appendChild(
+        createCell(
+            info.compression
+        )
+    );
+
+
+    /*
+     * Extra information
+     */
+    const extraCell =
+        document.createElement("td");
+
+    extraCell.className =
+        "extra-info";
+
+    extraCell.textContent =
+        info.extra ||
+        "—";
+
+    tr.appendChild(extraCell);
+
+
+    return tr;
+}
+
+
+/* =========================================================
+   批量渲染
+   ========================================================= */
+
+async function renderResults(results) {
+
+    tbody.innerHTML = "";
+
+
+    /*
+     * 分批加入 DOM，
+     * 避免一次 append 100000 行导致页面长时间卡死。
+     */
+    const BATCH_SIZE = 200;
+
+
+    for (
+        let start = 0;
+        start < results.length;
+        start += BATCH_SIZE
+    ) {
+
+        const fragment =
+            document.createDocumentFragment();
+
+
+        const end =
+            Math.min(
+                start + BATCH_SIZE,
+                results.length
+            );
+
+
+        for (
+            let i = start;
+            i < end;
+            i++
+        ) {
+
+            fragment.appendChild(
+                createResultRow(
+                    results[i]
+                )
+            );
+        }
+
+
+        tbody.appendChild(fragment);
+
+
+        /*
+         * 让浏览器有机会刷新 UI
+         */
+        await new Promise(
+            resolve =>
+                requestAnimationFrame(resolve)
+        );
+    }
+}
+
+
+/* =========================================================
+   批量并发处理
+   ========================================================= */
+
+async function processFiles(fileList) {
+
+    /*
+     * 清空旧结果
+     */
+    tbody.innerHTML = "";
+
+
+    /*
+     * 转 Array
+     */
+    let files =
+        Array.from(fileList);
+
+
+    /*
+     * 过滤
+     */
+    files =
+        files.filter(
+            file =>
+                isSupportedByName(file)
+        );
+
+
+    /*
+     * 最大 100000
+     */
+    if (
+        files.length > MAX_FILES
+    ) {
+
+        files =
+            files.slice(
+                0,
+                MAX_FILES
+            );
+
+
+        statusEl.textContent =
+            "Внимание: найдено больше " +
+            MAX_FILES +
+            " файлов. Обрабатываются первые " +
+            MAX_FILES +
+            ".";
+    }
+
+
+    totalCount.textContent =
+        files.length;
+
+    doneCount.textContent =
+        "0";
+
+    successCount.textContent =
+        "0";
+
+    errorCount.textContent =
+        "0";
+
+
+    progressBar.value = 0;
+
+    progressBar.max =
+        Math.max(
+            files.length,
+            1
+        );
+
+
+    if (files.length === 0) {
+
+        statusEl.textContent =
+            "Поддерживаемые графические файлы не найдены.";
+
+        return;
+    }
+
+
+    statusEl.textContent =
+        "Обработка файлов: " +
+        files.length;
+
+
+    /*
+     * 结果按照原文件顺序存储
+     */
+    const results =
+        new Array(files.length);
+
+
+    let nextIndex = 0;
+
+    let completed = 0;
+
+    let successful = 0;
+
+    let failed = 0;
+
+
+    /*
+     * Worker
+     */
+    async function worker() {
+
+        while (true) {
+
+            const index =
+                nextIndex++;
+
+
+            if (
+                index >= files.length
+            ) {
+                return;
+            }
+
+
+            const file =
+                files[index];
+
+
+            const result =
+                await processFile(file);
+
+
+            results[index] =
+                result;
+
+
+            completed++;
+
+
+            if (result.ok) {
+
+                successful++;
+
+            } else {
+
+                failed++;
+            }
+
+
+            /*
+             * UI更新
+             */
+            doneCount.textContent =
+                completed;
+
+            successCount.textContent =
+                successful;
+
+            errorCount.textContent =
+                failed;
+
+            progressBar.value =
+                completed;
+
+
+            statusEl.textContent =
+                "Обработано " +
+                completed +
+                " из " +
+                files.length;
+        }
+    }
+
+
+    /*
+     * 运行多个 worker
+     */
+    const workerCount =
+        Math.min(
+            CONCURRENCY,
+            files.length
+        );
+
+
+    const workers = [];
+
+
+    for (
+        let i = 0;
+        i < workerCount;
+        i++
+    ) {
+
+        workers.push(
+            worker()
+        );
+    }
+
+
+    await Promise.all(
+        workers
+    );
+
+
+    /*
+     * 渲染结果
+     */
+    await renderResults(
+        results
+    );
+
+
+    statusEl.textContent =
+        "Готово. Обработано: " +
+        completed +
+        ". Успешно: " +
+        successful +
+        ". Ошибок: " +
+        failed +
+        ".";
+}
+
+
+/* =========================================================
+   文件夹选择
+   ========================================================= */
+
+chooseFolderBtn.addEventListener(
+    "click",
+    () => {
+
+        folderInput.click();
+    }
+);
+
+
+/* =========================================================
+   文件选择
+   ========================================================= */
+
+chooseFilesBtn.addEventListener(
+    "click",
+    () => {
+
+        fileInput.click();
+    }
+);
+
+
+/* =========================================================
+   文件夹 input
+   ========================================================= */
+
+folderInput.addEventListener(
+    "change",
+    async function () {
+
+        if (!this.files || this.files.length === 0) {
+            return;
+        }
+
+        await processFiles(
+            this.files
+        );
+
+        /*
+         * 清空 input，
+         * 这样用户可以再次选择同一个文件夹。
+         */
+        this.value = "";
+    }
+);
+
+
+/* =========================================================
+   文件 input
+   ========================================================= */
+
+fileInput.addEventListener(
+    "change",
+    async function () {
+
+        if (!this.files || this.files.length === 0) {
+            return;
+        }
+
+        await processFiles(
+            this.files
+        );
+
+        this.value = "";
+    }
+);
+
+
+/* =========================================================
+   清空
+   ========================================================= */
+
+clearBtn.addEventListener(
+    "click",
+    () => {
+
+        tbody.innerHTML = "";
+
+        statusEl.textContent =
+            "Ожидание... Выберите папку или файлы.";
+
+        totalCount.textContent =
+            "0";
+
+        doneCount.textContent =
+            "0";
+
+        successCount.textContent =
+            "0";
+
+        errorCount.textContent =
+            "0";
+
+        progressBar.value =
+            0;
+
+        progressBar.max =
+            1;
+    }
+);
+
+</script>
+
+</body>
+</html>

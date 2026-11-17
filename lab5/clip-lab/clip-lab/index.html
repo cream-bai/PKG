@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Лабораторная работа 5 — Алгоритмы отсечения</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部标题栏 -->
+        <header id="header">
+            <h1>Лабораторная работа 5 — Алгоритмы отсечения отрезков и многоугольников</h1>
+            <div id="stats-bar">
+                <span id="fps-counter">FPS: 60</span>
+                <span id="op-counter">Операций: 0</span>
+                <span id="time-counter">Время: 0 мс</span>
+            </div>
+        </header>
+
+        <!-- 工具栏 -->
+        <div id="toolbar">
+            <!-- 左侧：文件加载和算法选择 -->
+            <div class="tool-group">
+                <label class="tool-label">Входные данные</label>
+                <button id="btn-load-file" class="btn">Загрузить файл</button>
+                <input type="file" id="file-input" accept=".txt,.dat" style="display:none">
+                <button id="btn-load-demo" class="btn">Демо-данные</button>
+                <button id="btn-generate-big" class="btn">Сгенерировать 500K</button>
+            </div>
+
+            <div class="tool-group">
+                <label class="tool-label">Алгоритм отрезков</label>
+                <select id="algo-lines" class="select-input">
+                    <option value="cohen">Сазерленд-Коэн</option>
+                    <option value="liang">Лианг-Барски</option>
+                    <option value="midpoint">Алгоритм средней точки</option>
+                    <option value="cyrus">Сайрус-Бек</option>
+                </select>
+                <label class="tool-label">Алгоритм полигонов</label>
+                <select id="algo-poly" class="select-input">
+                    <option value="weiler">Уайлер-Атертон</option>
+                    <option value="greiner">Грейнер-Хорман</option>
+                </select>
+            </div>
+
+            <div class="tool-group">
+                <label class="tool-label">Инструмент</label>
+                <button id="tool-pan" class="btn tool-btn active" data-tool="pan">Перемещение</button>
+                <button id="tool-line" class="btn tool-btn" data-tool="line">Добавить отрезок</button>
+                <button id="tool-poly" class="btn tool-btn" data-tool="poly">Добавить полигон</button>
+                <button id="tool-window" class="btn tool-btn" data-tool="window">Окно отсечения</button>
+            </div>
+
+            <div class="tool-group">
+                <label class="tool-label">Действия</label>
+                <button id="btn-clip-all" class="btn btn-primary">Отсечь всё</button>
+                <button id="btn-reset" class="btn">Сброс</button>
+                <button id="btn-stats" class="btn">Статистика</button>
+            </div>
+
+            <!-- 右侧：性能选项 -->
+            <div class="tool-group">
+                <label class="tool-label">Spatial Index</label>
+                <select id="spatial-index" class="select-input">
+                    <option value="none">Без индекса (O(N))</option>
+                    <option value="aabb">AABB пре-фильтр</option>
+                    <option value="quadtree">Quadtree</option>
+                </select>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-aabb" checked> Показать AABB
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="show-grid" checked> Сетка
+                </label>
+            </div>
+        </div>
+
+        <!-- 主工作区 -->
+        <div id="workspace">
+            <!-- 左侧面板：数据列表 -->
+            <aside id="left-panel">
+                <div class="panel-tabs">
+                    <button class="panel-tab active" data-panel="lines">Отрезки</button>
+                    <button class="panel-tab" data-panel="polygons">Полигоны</button>
+                    <button class="panel-tab" data-panel="tests">Тесты</button>
+                </div>
+                <div class="panel-content" id="panel-lines">
+                    <div class="panel-header">
+                        <span id="lines-count">0 отрезков</span>
+                        <button id="btn-add-line" class="btn-small">+</button>
+                    </div>
+                    <div id="lines-list" class="item-list"></div>
+                </div>
+                <div class="panel-content hidden" id="panel-polygons">
+                    <div class="panel-header">
+                        <span id="poly-count">0 полигонов</span>
+                        <button id="btn-add-poly" class="btn-small">+</button>
+                    </div>
+                    <div id="poly-list" class="item-list"></div>
+                </div>
+                <div class="panel-content hidden" id="panel-tests">
+                    <div class="test-section">
+                        <h4>Тест-кейсы (вырожденные случаи)</h4>
+                        <button class="btn-small full-width" data-test="boundary">Отрезки на границе</button>
+                        <button class="btn-small full-width" data-test="zero">Нулевые отрезки (точки)</button>
+                        <button class="btn-small full-width" data-test="vertex">Ребра через вершины</button>
+                        <button class="btn-small full-width" data-test="inside">Полностью внутри/снаружи</button>
+                    </div>
+                    <div class="test-section">
+                        <h4>Сравнение алгоритмов</h4>
+                        <button id="btn-benchmark" class="btn-small full-width">Запустить бенчмарк</button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 中央画布 -->
+            <main id="canvas-container">
+                <canvas id="main-canvas"></canvas>
+                <!-- 窗口信息浮层 -->
+                <div id="window-info" class="overlay-info">
+                    <div>Окно отсечения</div>
+                    <div id="window-coords">X: 0-100, Y: 0-100</div>
+                </div>
+            </main>
+
+            <!-- 右侧面板：结果和日志 -->
+            <aside id="right-panel">
+                <div class="panel-tabs">
+                    <button class="panel-tab active" data-panel="results">Результаты</button>
+                    <button class="panel-tab" data-panel="log">Лог</button>
+                    <button class="panel-tab" data-panel="docs">Справка</button>
+                </div>
+                <div class="panel-content" id="panel-results">
+                    <div id="results-content">
+                        <p class="hint">Выполните отсечение для просмотра результатов</p>
+                    </div>
+                </div>
+                <div class="panel-content hidden" id="panel-log">
+                    <div id="log-content"></div>
+                </div>
+                <div class="panel-content hidden" id="panel-docs">
+                    <div class="docs-content">
+                        <h3>Сазерленд-Коэн</h3>
+                        <p>Каждому концу отрезка присваивается 4-битный код, определяющий его положение относительно окна. Отрезки с кодом 0000 — видимы, с совпадающими ненулевыми битами — невидимы.</p>
+                        <h3>Лианг-Барски</h3>
+                        <p>Параметрический алгоритм. Вычисляет параметры t<sub>вх</sub> и t<sub>вых</sub> для нахождения видимой части отрезка. Требует меньше вычислений.</p>
+                        <h3>Уайлер-Атертон</h3>
+                        <p>Алгоритм отсечения произвольных (в т.ч. вогнутых) полигонов. Строит список рёбер обоих полигонов с отмеченными точками пересечения, затем обходит их.</p>
+                        <h3>Грейнер-Хорман</h3>
+                        <p>Улучшенный алгоритм отсечения выпуклых полигонов. Использует двусвязные списки рёбер (входящие/исходящие).</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- 底部状态栏 -->
+        <footer id="statusbar">
+            <span id="status-coords">Координаты: (0, 0)</span>
+            <span id="status-zoom">Масштаб: 100%</span>
+            <span id="status-selection">Выбрано: ничего</span>
+            <span id="status-message">Готово</span>
+        </footer>
+
+        <!-- 模态窗口：统计报告 -->
+        <div id="stats-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="modal-close" data-close="stats-modal">&times;</span>
+                <h2>Аналитический отчёт</h2>
+                <div id="stats-body"></div>
+            </div>
+        </div>
+
+        <!-- 模态窗口：手动添加线段 -->
+        <div id="line-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="modal-close" data-close="line-modal">&times;</span>
+                <h2>Добавить отрезок</h2>
+                <div class="form-row">
+                    <label>X1: <input type="number" id="line-x1" value="0"></label>
+                    <label>Y1: <input type="number" id="line-y1" value="0"></label>
+                </div>
+                <div class="form-row">
+                    <label>X2: <input type="number" id="line-x2" value="100"></label>
+                    <label>Y2: <input type="number" id="line-y2" value="100"></label>
+                </div>
+                <button id="line-modal-add" class="btn btn-primary">Добавить</button>
+            </div>
+        </div>
+
+        <!-- 模态窗口：手动添加多边形 -->
+        <div id="poly-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="modal-close" data-close="poly-modal">&times;</span>
+                <h2>Добавить полигон</h2>
+                <p class="hint">Введите координаты вершин через точку с запятой (x,y):</p>
+                <textarea id="poly-vertices" rows="6" placeholder="0,0; 100,0; 100,100; 0,100"></textarea>
+                <button id="poly-modal-add" class="btn btn-primary">Добавить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 脚本 -->
+    <script src="js/geometry.js"></script>
+    <script src="js/algorithms.js"></script>
+    <script src="js/spatial.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
